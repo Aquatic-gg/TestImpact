@@ -5,9 +5,12 @@ import gg.aquatic.testimpact.graph.internal.classfile.MalformedClassException
 import java.io.IOException
 import java.io.InputStream
 import java.io.UncheckedIOException
+import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.zip.ZipException
 import java.util.zip.ZipFile
 
@@ -15,7 +18,8 @@ import java.util.zip.ZipFile
  * Reads class directories and jars into a [DependencyGraph]. Class files and archives are untrusted: every
  * failure of a single class or archive becomes a [ClassProblem] and the result is [ClassGraphResult.Unknown],
  * never a partial graph. A root that is a link is resolved, a link inside a walked directory is not followed and
- * becomes a problem when it names a class or a directory. Entries are processed in sorted order, multi-release
+ * becomes a problem when it names a class or a directory; this covers symbolic links and other reparse points such
+ * as Windows junctions, whose target is never walked. Entries are processed in sorted order, multi-release
  * entries and `module-info.class` are ignored, and the result does not depend on the order of the roots.
  */
 internal object ClassGraphScanner {
@@ -43,18 +47,31 @@ internal object ClassGraphScanner {
     }
 
     private fun scanDirectory(root: Path, cap: Int, facts: MutableList<ClassFacts>, problems: MutableList<ClassProblem>) {
-        val files = try {
+        val files = ArrayList<Pair<Path, String>>()
+        try {
             val real = root.toRealPath()
-            Files.walk(real).use { stream ->
-                stream.filter { it != real }.map { it to relative(real, it) }.toList()
-            }.filter { (path, name) ->
-                if (Files.isSymbolicLink(path) && (isClassEntry(name) || Files.isDirectory(path))) {
-                    problems.add(ClassProblem(path.toString(), "link inside a class directory is not followed"))
-                    false
-                } else {
-                    isClassEntry(name) && Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)
+            val linkProblem = "link inside a class directory is not followed"
+            Files.walkFileTree(real, object : SimpleFileVisitor<Path>() {
+                override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
+                    if (dir == real) return FileVisitResult.CONTINUE
+                    val own = Files.readAttributes(dir, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+                    if (own.isSymbolicLink || own.isOther) {
+                        problems.add(ClassProblem(dir.toString(), linkProblem))
+                        return FileVisitResult.SKIP_SUBTREE
+                    }
+                    return FileVisitResult.CONTINUE
                 }
-            }
+
+                override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                    val name = relative(real, file)
+                    when {
+                        attrs.isSymbolicLink || attrs.isOther ->
+                            if (isClassEntry(name) || Files.isDirectory(file)) problems.add(ClassProblem(file.toString(), linkProblem))
+                        attrs.isRegularFile && isClassEntry(name) -> files.add(file to name)
+                    }
+                    return FileVisitResult.CONTINUE
+                }
+            })
         } catch (e: IOException) {
             problems.add(ClassProblem(root.toString(), "cannot walk directory: ${describe(e)}"))
             return

@@ -144,6 +144,26 @@ class ClassGraphScannerTest {
     }
 
     @Test
+    fun junctionToAnotherDirectoryMakesTheResultUnknownWithoutWalkingIt() {
+        Assumptions.assumeTrue(System.getProperty("os.name").startsWith("Windows"), "junctions exist on Windows only")
+        val outside = writeDirectory(temp.resolve("outsideJunction"), mapOf("q/Out.class" to classFile("q/Out")))
+        val dir = writeDirectory(temp.resolve("withJunction"), sample)
+        val junction = dir.resolve("q")
+        val created = try {
+            ProcessBuilder("cmd", "/c", "mklink", "/J", junction.toString(), outside.resolve("q").toString())
+                .redirectErrorStream(true).start().let { it.inputStream.readAllBytes(); it.waitFor() == 0 }
+        } catch (e: IOException) {
+            false
+        }
+        Assumptions.assumeTrue(created, "the junction could not be created")
+
+        val problems = unknown(ClassGraphScanner.scan(listOf(dir)))
+
+        assertEquals(1, problems.size)
+        assertTrue(problems[0].location.replace('\\', '/').endsWith("/q"), problems[0].location)
+    }
+
+    @Test
     fun missingRootContributesNothing() {
         val graph = known(ClassGraphScanner.scan(listOf(temp.resolve("absent"))))
 
