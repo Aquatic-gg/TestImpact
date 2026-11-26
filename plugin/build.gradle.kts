@@ -42,6 +42,10 @@ tasks.named("check") {
     dependsOn(testing.suites.named("functionalTest"))
 }
 
+tasks.test {
+    finalizedBy(testing.suites.named("functionalTest"))
+}
+
 tasks.validatePlugins {
     enableStricterValidation = true
     failOnWarning = true
