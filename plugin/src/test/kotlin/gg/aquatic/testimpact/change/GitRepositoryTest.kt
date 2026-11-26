@@ -219,7 +219,7 @@ class GitRepositoryTest {
     }
 
     @Test
-    fun linkedWorktreeBehavesLikeTheMainOne() =committedRepo { repo ->
+    fun linkedWorktreeBehavesLikeTheMainOne() = committedRepo { repo ->
         val linked = repo.sibling("linked")
         repo.git("worktree", "add", "-q", "-b", "feature", linked.toString())
         repo.write("a.txt", "edited in the linked tree\n", linked)
