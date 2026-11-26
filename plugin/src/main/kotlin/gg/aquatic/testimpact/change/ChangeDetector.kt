@@ -18,7 +18,6 @@ import java.nio.file.Path
  */
 internal object ChangeDetector {
 
-    private const val MAX_SOURCE_BYTES = 4L * 1024 * 1024
     private const val MAX_DETAIL = 500
 
     /** @param envOverrides environment for the git processes, a hook for tests. */
@@ -111,7 +110,7 @@ internal object ChangeDetector {
             try {
                 val real = read.topLevel.resolve(path).toRealPath()
                 if (!real.startsWith(rootReal) || !Files.isRegularFile(real)) return null
-                if (Files.size(real) > MAX_SOURCE_BYTES) return null
+                if (Files.size(real) > GitRepository.MAX_BLOB_BYTES) return null
                 return Files.readAllBytes(real)
             } catch (_: IOException) {
                 return null

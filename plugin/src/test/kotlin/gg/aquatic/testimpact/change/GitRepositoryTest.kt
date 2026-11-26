@@ -149,12 +149,48 @@ class GitRepositoryTest {
     }
 
     @Test
-    fun splitIndexIsRead() = committedRepo { repo ->
+    fun splitIndexIsReadWithoutTouchingTheGitDirectory() = committedRepo { repo ->
         repo.git("update-index", "--split-index")
         repo.write("a.txt", "edited\n")
+        Files.setLastModifiedTime(repo.dir.resolve("a.txt"), FileTime.fromMillis(1_000_000_000_000L))
+        val snapshot = { snapshotOf(repo.dir.resolve(".git")) }
+        val before = snapshot()
         val ok = okOf(read(repo))
         assertEquals(listOf(DiffEntry(ChangeStatus.MODIFIED, "a.txt", "a.txt")), ok.entries)
+        assertEquals(before.keys, snapshot().keys)
+        for ((name, state) in before) {
+            val after = snapshot().getValue(name)
+            // git itself freshens the mtime of a shared index it reads; the bytes must still match
+            if (!name.startsWith("sharedindex.")) assertEquals(state.mtime, after.mtime, name)
+            assertContentEquals(state.bytes, after.bytes, name)
+        }
     }
+
+    @Test
+    fun conflictedMergeIsKnownWithTheConflictedPathModified() = committedRepo { repo ->
+        repo.git("checkout", "-q", "-b", "feature")
+        repo.write("a.txt", "feature\n")
+        repo.commitAll("feature")
+        repo.git("checkout", "-q", "main")
+        repo.write("a.txt", "main\n")
+        repo.commitAll("main")
+        repo.git("checkout", "-q", "feature")
+        val (code, _) = repo.gitRaw(repo.dir, "merge", "main")
+        assertEquals(1, code)
+        val ok = okOf(read(repo, base = "main"))
+        assertEquals(listOf(DiffEntry(ChangeStatus.MODIFIED, "a.txt", "a.txt")), ok.entries)
+    }
+
+    private class FileState(val mtime: FileTime, val bytes: ByteArray)
+
+    private fun snapshotOf(gitDir: Path): Map<String, FileState> =
+        Files.walk(gitDir).use { stream ->
+            stream.filter { Files.isRegularFile(it) }
+                .toList()
+                .associate {
+                    gitDir.relativize(it).toString() to FileState(Files.getLastModifiedTime(it), Files.readAllBytes(it))
+                }
+        }
 
     @Test
     fun missingIndexFileIsGitFailed() = committedRepo { repo ->
@@ -183,7 +219,7 @@ class GitRepositoryTest {
     }
 
     @Test
-    fun linkedWorktreeBehavesLikeTheMainOne()= committedRepo { repo ->
+    fun linkedWorktreeBehavesLikeTheMainOne() =committedRepo { repo ->
         val linked = repo.sibling("linked")
         repo.git("worktree", "add", "-q", "-b", "feature", linked.toString())
         repo.write("a.txt", "edited in the linked tree\n", linked)

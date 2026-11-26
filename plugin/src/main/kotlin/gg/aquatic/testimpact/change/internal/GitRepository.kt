@@ -67,12 +67,12 @@ internal class GitRepository(private val runner: GitRunner) {
 
         val (entries, untracked) = withIndexCopy(topLevel) { env ->
             // The refresh makes stat-dirty but identical files drop out; it only ever touches the copy.
-            succeedBytes(topLevel, env, "update-index", "-q", "--refresh")
+            succeedBytes(topLevel, env, *NO_SPLIT, "update-index", "-q", "--unmerged", "--refresh")
             val diff = succeedBytes(
-                topLevel, env, "diff-index", "-z", "--name-status", "--find-renames", "--no-ext-diff", "--no-textconv",
+                topLevel, env, *NO_SPLIT, "diff-index", "-z", "--name-status", "--find-renames", "--no-ext-diff", "--no-textconv",
                 "--no-relative", "--ignore-submodules=none", mergeBase, "--",
             )
-            val others = succeedBytes(topLevel, env, "ls-files", "-z", "--others", "--exclude-standard")
+            val others = succeedBytes(topLevel, env, *NO_SPLIT, "ls-files", "-z", "--others", "--exclude-standard")
             GitOutput.nameStatusZ(diff) to GitOutput.nulList(others)
         }
         val before = readBefore(topLevel, mergeBase, entries, wantsBlob)
@@ -164,7 +164,7 @@ internal class GitRepository(private val runner: GitRunner) {
 
     private fun succeedBytes(dir: Path, env: Map<String, String>, vararg args: String): ByteArray {
         val result = runner.run(dir, args.toList(), extraEnv = env)
-        if (result.exitCode != 0) fail(UnknownReason.GIT_FAILED, result.detail.ifEmpty { "${args.first()} failed" })
+        if (result.exitCode != 0) fail(UnknownReason.GIT_FAILED, result.detail.ifEmpty { "${args.firstOrNull { !it.startsWith("-") && !it.contains('=') }} failed" })
         return result.stdout
     }
 
@@ -180,6 +180,7 @@ internal class GitRepository(private val runner: GitRunner) {
 
     companion object {
         const val MAX_BLOB_BYTES = 4L * 1024 * 1024
+        private val NO_SPLIT = arrayOf("-c", "core.splitIndex=false")
         private const val MAX_DETAIL = 500
         private val DEFAULT_BASES = listOf("origin/HEAD", "origin/main", "origin/master", "main", "master")
         private val COMMIT_ID = Regex("[0-9a-f]{40,64}")
