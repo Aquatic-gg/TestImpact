@@ -32,6 +32,7 @@ internal object ClassFileReader {
         private val references = TreeSet<String>()
         private lateinit var annotations: AnnotationScanner
         private val constants = ArrayList<RawConstant>()
+        private val methodNames = HashSet<String>()
         private var sourceFile: String? = null
         private var innerOuter: String? = null
         private var innerFlags: Int? = null
@@ -116,6 +117,7 @@ internal object ClassFileReader {
             val access = cursor.u2()
             val name = pool.utf8(cursor.u2())
             val descriptor = pool.utf8(cursor.u2())
+            if (isMethod) methodNames.add(name)
             TypeNames.addFromDescriptor(descriptor, references)
             readAttributes { attribute, body ->
                 when (attribute) {
@@ -234,12 +236,18 @@ internal object ClassFileReader {
 
         private fun inlineSources(): List<String> {
             val maps = listOfNotNull(debugText, annotations.debugExtension).filter(SourceMap::isSourceMap)
-            if (maps.isEmpty() && pool.anyUtf8StartsWith(INLINE_MARKER)) {
+            if (maps.isEmpty() && pool.utf8StartingWith(INLINE_MARKER).any { !isOwnInlineFunction(it) }) {
                 throw MalformedClassException("inlined code without a source map")
             }
             val classes = TreeSet<String>()
             for (map in maps) classes.addAll(SourceMap.inlinedClasses(map))
             return classes.toList()
+        }
+
+        /** The marker a Kotlin inline function leaves in its own body, which needs no source map of its own. */
+        private fun isOwnInlineFunction(marker: String): Boolean {
+            val function = marker.removePrefix(INLINE_MARKER)
+            return methodNames.any { it == function || it.startsWith("$function\$") || it.startsWith("$function-") }
         }
 
         private fun classScope(access: Int): ReachScope = scopeOf(innerFlags ?: access)

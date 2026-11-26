@@ -136,6 +136,15 @@ internal class ConstantPool private constructor(
         return false
     }
 
+    /** Every Utf8 entry starting with the ASCII [prefix], decoded, in pool order. */
+    fun utf8StartingWith(prefix: String): List<String> {
+        val found = ArrayList<String>()
+        for (index in 1 until tags.size) {
+            if (tags[index].toInt() == UTF8 && utf8StartsWith(index, prefix)) found.add(utf8(index))
+        }
+        return found
+    }
+
     /** Calls [action] with the index of every entry carrying [tag], in pool order. */
     fun forEachOfTag(tag: Int, action: (Int) -> Unit) {
         for (index in 1 until tags.size) {

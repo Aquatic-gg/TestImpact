@@ -264,6 +264,21 @@ class ClassFileReaderTest {
     }
 
     @Test
+    fun `an inline function marker inside its own definition needs no source map`() {
+        val b = ClassBytes()
+        val self = b.classRef("p/AKt")
+        b.utf8("\$i\$f\$run")
+        val definer = b.classFile(self, methods = listOf(b.declaration(0x19, "run", "()V")))
+        assertEquals(emptyList(), ClassFileReader.read(definer).inlineSources)
+
+        val c = ClassBytes()
+        val other = c.classRef("p/BKt")
+        c.utf8("\$i\$f\$run")
+        val user = c.classFile(other, methods = listOf(c.declaration(0x19, "walk", "()V")))
+        assertFailsWith<MalformedClassException> { ClassFileReader.read(user) }
+    }
+
+    @Test
     fun `inlined code without a source map is malformed`() {
         val b = ClassBytes()
         val self = b.classRef("p/AKt")
