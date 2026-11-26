@@ -10,7 +10,7 @@ internal class DependencyGraph private constructor(private val byName: Map<Strin
     /** Scanned class names, sorted. */
     val classes: List<String> = byName.keys.sorted()
 
-    private val owners: Map<String, String> = classes.associateWith { computeOwner(it) }
+    private val owners: Map<String, String> = computeOwners()
     private val owned: Map<String, List<String>> = classes.groupBy { owners.getValue(it) }
     private val sources: Map<String, String> = buildMap {
         for (name in classes) sourceKey(byName.getValue(name))?.let { put(name, it) }
@@ -57,7 +57,7 @@ internal class DependencyGraph private constructor(private val byName: Map<Strin
      * The top-level class [name] is declared in, found by following [ClassFacts.outer]; [name] itself for a
      * top-level class or an unscanned one. An outer chain that loops resolves to the smallest name of the loop.
      */
-    fun owner(name: String): String = owners[name] ?: computeOwner(name)
+    fun owner(name: String): String = owners[name] ?: name
 
     /** Scanned classes whose [owner] is [owner], sorted. */
     fun ownedBy(owner: String): List<String> = owned[owner].orEmpty()
@@ -68,11 +68,23 @@ internal class DependencyGraph private constructor(private val byName: Map<Strin
      */
     fun sourceOf(name: String): String? = sources[name]
 
-    private fun computeOwner(start: String): String {
-        val path = ArrayList<String>()
+    private fun computeOwners(): Map<String, String> {
+        val resolved = HashMap<String, String>()
+        for (start in classes) {
+            if (start in resolved) continue
+            val path = ArrayList<String>()
+            val owner = followOuterChain(start, path, resolved)
+            for (member in path) resolved[member] = owner
+        }
+        return resolved
+    }
+
+    /** Walks the outer chain from [start], appending every visited class to [path]; stops at a known owner, a top-level class or a loop. */
+    private fun followOuterChain(start: String, path: MutableList<String>, resolved: Map<String, String>): String {
         val index = HashMap<String, Int>()
         var current = start
         while (true) {
+            resolved[current]?.let { return it }
             val seen = index[current]
             if (seen != null) return path.subList(seen, path.size).min()
             index[current] = path.size

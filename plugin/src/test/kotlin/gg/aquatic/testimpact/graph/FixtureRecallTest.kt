@@ -47,6 +47,8 @@ class FixtureRecallTest {
         edge("constants.JavaUsers", "constants.JavaConst", CONSTANT),
         edge("constants.JavaUsers", "constants.PackageConst", CONSTANT),
         edge("constants.SameFileUser", "constants.PrivateConstKt", CONSTANT),
+        edge("constants.other.InheritedConstUser", "constants.HiddenBase", CONSTANT),
+        edge("constants.other.InheritedConstUser", "constants.HiddenConsts", CONSTANT),
         // inline
         edge("inline.InlineUser", "inline.InlineDefsKt", INLINE),
         edge("inline.InlineUser", "inline.InlineObject", INLINE),
@@ -91,10 +93,11 @@ class FixtureRecallTest {
     }
 
     @Test
-    fun `kotlin users of folded constants carry no reference of their own`() {
-        val kotlinUsers = expected.filter { it.kind == CONSTANT && graph.facts(it.from)?.isKotlin == true }
-        assertTrue(kotlinUsers.size >= 4)
-        for (edge in kotlinUsers) {
+    fun `users of folded constants carry no reference of their own`() {
+        val users = expected.filter { it.kind == CONSTANT }
+        assertTrue(users.count { graph.facts(it.from)?.isKotlin == true } >= 4)
+        assertTrue(users.count { graph.facts(it.from)?.isKotlin == false } >= 4)
+        for (edge in users) {
             val references = graph.facts(edge.from)?.references.orEmpty()
             assertTrue(edge.to !in references, "${edge.from} references ${edge.to}: the fixture no longer shows a folded constant")
         }

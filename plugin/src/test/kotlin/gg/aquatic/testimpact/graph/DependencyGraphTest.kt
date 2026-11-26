@@ -1,9 +1,12 @@
 package gg.aquatic.testimpact.graph
 
+import java.time.Duration
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import org.junit.jupiter.api.Assertions.assertTimeoutPreemptively
+import org.junit.jupiter.api.function.ThrowingSupplier
 
 class DependencyGraphTest {
     private fun facts(
@@ -250,6 +253,18 @@ class DependencyGraphTest {
             assertEquals("p.A", reversed.owner(name))
         }
         assertEquals(listOf("p.A", "p.B", "p.C"), graph.ownedBy("p.A"))
+    }
+
+    @Test
+    fun longOuterChainResolvesInLinearTime() {
+        val depth = 100_000
+        val chain = (0..depth).map { facts("p.C$it", outer = if (it == 0) null else "p.C${it - 1}") }
+
+        val graph = assertTimeoutPreemptively(Duration.ofSeconds(20), ThrowingSupplier { DependencyGraph.of(chain.reversed()) })
+
+        assertEquals("p.C0", graph.owner("p.C$depth"))
+        assertEquals("p.C0", graph.owner("p.C${depth / 2}"))
+        assertEquals(depth + 1, graph.ownedBy("p.C0").size)
     }
 
     @Test

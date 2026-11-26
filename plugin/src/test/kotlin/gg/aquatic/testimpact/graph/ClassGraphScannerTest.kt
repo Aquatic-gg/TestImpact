@@ -1,6 +1,7 @@
 package gg.aquatic.testimpact.graph
 
 import gg.aquatic.testimpact.graph.internal.classfile.ClassBytes
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.zip.ZipEntry
@@ -11,6 +12,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
+import org.junit.jupiter.api.Assumptions
 import org.junit.jupiter.api.io.TempDir
 
 class ClassGraphScannerTest {
@@ -94,6 +96,51 @@ class ClassGraphScannerTest {
         )
 
         assertEquals(listOf("p.A", "p.B", "p.C"), known(ClassGraphScanner.scan(listOf(dir))).classes)
+    }
+
+    private fun link(link: Path, target: Path) {
+        val created = try {
+            Files.createSymbolicLink(link, target)
+            true
+        } catch (e: UnsupportedOperationException) {
+            false
+        } catch (e: IOException) {
+            false
+        }
+        Assumptions.assumeTrue(created, "the platform cannot create symbolic links here")
+    }
+
+    @Test
+    fun symlinkedRootIsWalkedThroughItsTarget() {
+        val dir = writeDirectory(temp.resolve("real"), sample)
+        val root = temp.resolve("linked")
+        link(root, dir)
+
+        assertEquals(listOf("p.A", "p.B", "p.C"), known(ClassGraphScanner.scan(listOf(root))).classes)
+    }
+
+    @Test
+    fun symlinkedClassFileMakesTheResultUnknown() {
+        val outside = writeDirectory(temp.resolve("outside"), mapOf("Out.class" to classFile("Out")))
+        val dir = writeDirectory(temp.resolve("withLink"), sample)
+        link(dir.resolve("p/Linked.class"), outside.resolve("Out.class"))
+
+        val problems = unknown(ClassGraphScanner.scan(listOf(dir)))
+
+        assertEquals(1, problems.size)
+        assertTrue(problems[0].location.replace('\\', '/').endsWith("p/Linked.class"), problems[0].location)
+    }
+
+    @Test
+    fun symlinkedDirectoryMakesTheResultUnknown() {
+        val outside = writeDirectory(temp.resolve("outsideDir"), mapOf("q/Out.class" to classFile("q/Out")))
+        val dir = writeDirectory(temp.resolve("withDirLink"), sample)
+        link(dir.resolve("q"), outside.resolve("q"))
+
+        val problems = unknown(ClassGraphScanner.scan(listOf(dir)))
+
+        assertEquals(1, problems.size)
+        assertTrue(problems[0].location.replace('\\', '/').endsWith("/q"), problems[0].location)
     }
 
     @Test

@@ -7,9 +7,11 @@ package gg.aquatic.testimpact.graph
  * Soundness model: a class file only shows a dependency when the compiler left a trace of it. Constants are
  * folded into their users and typealiases are erased, so [CONSTANT] and [TYPEALIAS] edges are not read from
  * the user but derived from the definer: every scanned class that may see the declaration (see [ReachScope])
- * is treated as a user. That never misses a user. The residual is over-selection: a change to a class that owns
- * a public constant or declares a public typealias reaches every scanned class (every Kotlin class for
- * aliases), however little of it is really used.
+ * is treated as a user. That never misses a user. A constant of a class that can be subclassed (not final, or an
+ * interface) is visible wherever a wider subclass is, so only its field visibility counts; a final class also
+ * narrows it to its own visibility. The residual is over-selection: a change to a class that owns a public
+ * constant or declares a public typealias reaches every scanned class (every Kotlin class for aliases),
+ * however little of it is really used.
  */
 internal enum class EdgeKind {
     /** Superclass or interface. */

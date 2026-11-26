@@ -21,6 +21,8 @@ internal object ClassFileReader {
     private const val ACC_PUBLIC = 0x0001
     private const val ACC_PRIVATE = 0x0002
     private const val ACC_PROTECTED = 0x0004
+    private const val ACC_FINAL = 0x0010
+    private const val ACC_INTERFACE = 0x0200
     private const val ACC_MODULE = 0x8000
     private const val INLINE_MARKER = "\$i\$f\$"
 
@@ -250,7 +252,12 @@ internal object ClassFileReader {
             return methodNames.any { it == function || it.startsWith("$function\$") || it.startsWith("$function-") }
         }
 
-        private fun classScope(access: Int): ReachScope = scopeOf(innerFlags ?: access)
+        /** A class that can be subclassed lends its constants to wider subclasses, so only a final class narrows them. */
+        private fun classScope(access: Int): ReachScope {
+            val flags = innerFlags ?: access
+            val closed = flags and ACC_FINAL != 0 && flags and ACC_INTERFACE == 0
+            return if (closed) scopeOf(flags) else ReachScope.ALL
+        }
 
         private fun memberScope(access: Int): ReachScope = scopeOf(access)
 

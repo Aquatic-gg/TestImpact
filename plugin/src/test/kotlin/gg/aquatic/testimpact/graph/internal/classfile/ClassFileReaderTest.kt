@@ -111,16 +111,28 @@ class ClassFileReaderTest {
         assertEquals(ReachScope.PACKAGE, constantClass(0x21, 0x18).constantScope)
         assertEquals(ReachScope.ALL, constantClass(0x21, 0x19).constantScope)
         assertEquals(ReachScope.ALL, constantClass(0x21, 0x1C).constantScope)
-        assertEquals(ReachScope.PACKAGE, constantClass(0x20, 0x19).constantScope)
+        assertEquals(ReachScope.PACKAGE, constantClass(0x30, 0x19).constantScope)
+        assertEquals(ReachScope.FILE, constantClass(0x30, 0x1A).constantScope)
+        assertEquals(ReachScope.PACKAGE, constantClass(0x30, 0x18).constantScope)
+    }
+
+    @Test
+    fun `a class that can be subclassed does not narrow its constants`() {
+        assertEquals(ReachScope.ALL, constantClass(0x20, 0x19).constantScope)
+        assertEquals(ReachScope.ALL, constantClass(0x20, 0x1C).constantScope)
         assertEquals(ReachScope.FILE, constantClass(0x20, 0x1A).constantScope)
+        assertEquals(ReachScope.PACKAGE, constantClass(0x20, 0x18).constantScope)
+        assertEquals(ReachScope.ALL, constantClass(0x600, 0x19).constantScope)
     }
 
     @Test
     fun `the InnerClasses flags of the class itself decide its visibility`() {
-        assertEquals(ReachScope.FILE, constantClass(0x21, 0x19, innerFlags = 0x000A, outer = "p/Outer").constantScope)
-        assertEquals(ReachScope.PACKAGE, constantClass(0x21, 0x19, innerFlags = 0x0008, outer = "p/Outer").constantScope)
-        assertEquals(ReachScope.ALL, constantClass(0x21, 0x19, innerFlags = 0x0009, outer = "p/Outer").constantScope)
-        assertEquals(ReachScope.ALL, constantClass(0x21, 0x19, innerFlags = 0x000C, outer = "p/Outer").constantScope)
+        assertEquals(ReachScope.FILE, constantClass(0x21, 0x19, innerFlags = 0x001A, outer = "p/Outer").constantScope)
+        assertEquals(ReachScope.PACKAGE, constantClass(0x21, 0x19, innerFlags = 0x0018, outer = "p/Outer").constantScope)
+        assertEquals(ReachScope.ALL, constantClass(0x21, 0x19, innerFlags = 0x0019, outer = "p/Outer").constantScope)
+        assertEquals(ReachScope.ALL, constantClass(0x21, 0x19, innerFlags = 0x001C, outer = "p/Outer").constantScope)
+        assertEquals(ReachScope.ALL, constantClass(0x21, 0x19, innerFlags = 0x000A, outer = "p/Outer").constantScope)
+        assertEquals(ReachScope.ALL, constantClass(0x21, 0x19, innerFlags = 0x060A, outer = "p/Outer").constantScope)
     }
 
     @Test

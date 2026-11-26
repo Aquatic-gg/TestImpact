@@ -14,7 +14,8 @@ import java.util.zip.ZipFile
 /**
  * Reads class directories and jars into a [DependencyGraph]. Class files and archives are untrusted: every
  * failure of a single class or archive becomes a [ClassProblem] and the result is [ClassGraphResult.Unknown],
- * never a partial graph. Directory walks do not follow links, entries are processed in sorted order, multi-release
+ * never a partial graph. A root that is a link is resolved, a link inside a walked directory is not followed and
+ * becomes a problem when it names a class or a directory. Entries are processed in sorted order, multi-release
  * entries and `module-info.class` are ignored, and the result does not depend on the order of the roots.
  */
 internal object ClassGraphScanner {
@@ -43,11 +44,16 @@ internal object ClassGraphScanner {
 
     private fun scanDirectory(root: Path, cap: Int, facts: MutableList<ClassFacts>, problems: MutableList<ClassProblem>) {
         val files = try {
-            Files.walk(root).use { stream ->
-                stream.filter { Files.isRegularFile(it, LinkOption.NOFOLLOW_LINKS) }
-                    .map { it to relative(root, it) }
-                    .filter { isClassEntry(it.second) }
-                    .toList()
+            val real = root.toRealPath()
+            Files.walk(real).use { stream ->
+                stream.filter { it != real }.map { it to relative(real, it) }.toList()
+            }.filter { (path, name) ->
+                if (Files.isSymbolicLink(path) && (isClassEntry(name) || Files.isDirectory(path))) {
+                    problems.add(ClassProblem(path.toString(), "link inside a class directory is not followed"))
+                    false
+                } else {
+                    isClassEntry(name) && Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)
+                }
             }
         } catch (e: IOException) {
             problems.add(ClassProblem(root.toString(), "cannot walk directory: ${describe(e)}"))
