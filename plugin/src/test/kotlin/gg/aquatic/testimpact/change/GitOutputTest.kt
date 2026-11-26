@@ -97,6 +97,21 @@ class GitOutputTest {
     }
 
     @Test
+    fun batchCheckReturnsBlobSizesAndNullForTheRest() {
+        val oid = "0123456789abcdef0123456789abcdef01234567"
+        val output = "$oid blob 12\n$oid commit 3\nabc:sub dir/x missing\n$oid blob 99999999999\n"
+        assertEquals(listOf(12L, null, null, 99_999_999_999L), GitOutput.batchCheck(output.toByteArray(), 4))
+    }
+
+    @Test
+    fun batchCheckRejectsMalformedOutput() {
+        assertFailsWith<IllegalArgumentException> { GitOutput.batchCheck(ByteArray(0), 1) }
+        assertFailsWith<IllegalArgumentException> { GitOutput.batchCheck("x blob zz\n".toByteArray(), 1) }
+        assertFailsWith<IllegalArgumentException> { GitOutput.batchCheck("x blob 1\n".toByteArray(), 2) }
+        assertFailsWith<IllegalArgumentException> { GitOutput.batchCheck("x blob 1".toByteArray(), 1) }
+    }
+
+    @Test
     fun catFileBatchRejectsMalformedOutput() {
         assertFailsWith<IllegalArgumentException> { GitOutput.catFileBatch(ByteArray(0), 1) }
         assertFailsWith<IllegalArgumentException> { GitOutput.catFileBatch("x blob 10\nabc\n".toByteArray(), 1) }

@@ -132,7 +132,58 @@ class GitRepositoryTest {
     }
 
     @Test
-    fun linkedWorktreeBehavesLikeTheMainOne() = committedRepo { repo ->
+    fun touchedButUnchangedFilesAreNotListedAndTheRealIndexStaysUntouched() = committedRepo { repo ->
+        repo.write("b.txt", "two\n")
+        repo.commitAll("two")
+        val a = repo.dir.resolve("a.txt")
+        Files.setLastModifiedTime(a, FileTime.fromMillis(1_000_000_000_000L))
+        repo.write("b.txt", "changed\n")
+        val index = repo.dir.resolve(".git").resolve("index")
+        val bytes = Files.readAllBytes(index)
+        val mtime = Files.getLastModifiedTime(index)
+        val ok = okOf(read(repo))
+        assertEquals(listOf(DiffEntry(ChangeStatus.MODIFIED, "b.txt", "b.txt")), ok.entries)
+        assertContentEquals(bytes, Files.readAllBytes(index))
+        assertEquals(mtime, Files.getLastModifiedTime(index))
+        assertEquals(emptyList(), Files.list(repo.dir.resolve(".git")).use { s -> s.filter { it.fileName.toString().endsWith(".lock") }.toList() })
+    }
+
+    @Test
+    fun splitIndexIsRead() = committedRepo { repo ->
+        repo.git("update-index", "--split-index")
+        repo.write("a.txt", "edited\n")
+        val ok = okOf(read(repo))
+        assertEquals(listOf(DiffEntry(ChangeStatus.MODIFIED, "a.txt", "a.txt")), ok.entries)
+    }
+
+    @Test
+    fun missingIndexFileIsGitFailed() = committedRepo { repo ->
+        Files.delete(repo.dir.resolve(".git").resolve("index"))
+        assertEquals(UnknownReason.GIT_FAILED, unknownOf(read(repo)).reason)
+    }
+
+    @Test
+    fun largeBlobsAreNeverLoaded() = committedRepo { repo ->
+        repo.writeBytes("big.bin", ByteArray(5 * 1024 * 1024) { (it % 251).toByte() })
+        repo.writeBytes("small.bin", ByteArray(10) { 7 })
+        repo.commitAll("blobs")
+        Files.delete(repo.dir.resolve("big.bin"))
+        Files.delete(repo.dir.resolve("small.bin"))
+        val ok = okOf(read(repo))
+        assertEquals(setOf("big.bin", "small.bin"), ok.entries.mapNotNull { it.oldPath }.toSet())
+        assertEquals(null, ok.before["big.bin"])
+        assertContentEquals(ByteArray(10) { 7 }, ok.before["small.bin"])
+    }
+
+    @Test
+    fun onlyWantedBlobsAreRead() = committedRepo { repo ->
+        repo.write("a.txt", "edited\n")
+        val ok = okOf(GitRepository(GitRunner(envOverrides = repo.env)).read(repo.dir, null) { _, _ -> false })
+        assertEquals(mapOf("a.txt" to null), ok.before)
+    }
+
+    @Test
+    fun linkedWorktreeBehavesLikeTheMainOne()= committedRepo { repo ->
         val linked = repo.sibling("linked")
         repo.git("worktree", "add", "-q", "-b", "feature", linked.toString())
         repo.write("a.txt", "edited in the linked tree\n", linked)

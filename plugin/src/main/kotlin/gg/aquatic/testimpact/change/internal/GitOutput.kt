@@ -90,6 +90,23 @@ internal object GitOutput {
         return result
     }
 
+    /**
+     * Parses `git cat-file --batch-check` output for [expected] queries: the size of each blob in order, null for a
+     * missing object or one that is not a blob.
+     */
+    fun batchCheck(bytes: ByteArray, expected: Int): List<Long?> {
+        val lines = String(bytes, StandardCharsets.ISO_8859_1).split('\n')
+        require(lines.size == expected + 1 && lines.last().isEmpty()) { "unexpected cat-file check output" }
+        return lines.dropLast(1).map { line ->
+            if (line.endsWith(" missing")) return@map null
+            val parts = line.split(' ')
+            require(parts.size == 3) { "malformed cat-file check line" }
+            val size = parts[2].toLongOrNull()
+            require(size != null && size >= 0) { "malformed cat-file size" }
+            if (parts[1] == "blob") size else null
+        }
+    }
+
     private fun single(status: String, path: String): String {
         require(status.length == 1) { "malformed name-status code '$status'" }
         return path

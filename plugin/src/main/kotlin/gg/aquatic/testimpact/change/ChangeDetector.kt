@@ -34,16 +34,25 @@ internal object ChangeDetector {
 
     private fun detectOrThrow(input: DetectionInput, envOverrides: Map<String, String>): ChangeDetection {
         val runner = GitRunner(input.gitExecutable, input.gitTimeout, envOverrides)
-        val read = when (val result = GitRepository(runner).read(input.projectDir, input.baseRef)) {
+        fun classifierFor(topLevel: Path): FileClassifier {
+            val paths = RepoPaths(topLevel)
+            return FileClassifier(
+                input.sourceRoots.mapNotNull(paths::relativize),
+                input.resourceRoots.mapNotNull(paths::relativize),
+                input.buildLogicRoots.mapNotNull(paths::relativize),
+            )
+        }
+        var cached: FileClassifier? = null
+        val read = when (
+            val result = GitRepository(runner).read(input.projectDir, input.baseRef) { topLevel, path ->
+                val classifier = cached ?: classifierFor(topLevel).also { cached = it }
+                classifier.classify(path).kind == FileKind.SOURCE
+            }
+        ) {
             is GitRead.Failed -> return result.unknown
             is GitRead.Ok -> result
         }
-        val paths = RepoPaths(read.topLevel)
-        val classifier = FileClassifier(
-            input.sourceRoots.mapNotNull(paths::relativize),
-            input.resourceRoots.mapNotNull(paths::relativize),
-            input.buildLogicRoots.mapNotNull(paths::relativize),
-        )
+        val classifier = cached ?: classifierFor(read.topLevel)
         val snapshots = Snapshots(read, classifier, input.classOutputDirs)
 
         val files = ArrayList<ChangedFile>(read.entries.size + read.untracked.size)
@@ -70,7 +79,7 @@ internal object ChangeDetector {
             val snapshot = classifier.classify(path)
             if (snapshot.kind != FileKind.SOURCE) return snapshot
             val blob = read.before[path]
-            if (blob == null || blob.size > MAX_SOURCE_BYTES) return unresolved(snapshot)
+            if (blob == null) return unresolved(snapshot)
             return declared(snapshot, blob, verify = false)
         }
 
