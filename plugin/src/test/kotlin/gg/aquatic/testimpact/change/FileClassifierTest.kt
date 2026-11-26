@@ -22,13 +22,34 @@ class FileClassifierTest {
             "settings.gradle", "gradlew", "gradlew.bat", "gradle/libs.versions.toml",
             "gradle/wrapper/gradle-wrapper.properties", "plugin/dependencies.lockfile",
             "buildSrc/src/main/kotlin/A.kt", "build-logic/src/main/kotlin/B.kt",
-            "sub/buildSrc/X.java", "tools/scripts/run.sh",
+            "tools/scripts/run.sh", "buildSrc/x.kt",
         ).forEach { assertEquals(FileKind.BUILD_LOGIC, kind(it), it) }
     }
 
     @Test
-    fun `build logic beats a source root`() {
-        assertEquals(FileKind.BUILD_LOGIC, kind("plugin/src/main/kotlin/buildSrc/A.kt"))
+    fun `build logic directories only count as the first path segment`() {
+        assertEquals(FileKind.OTHER, kind("sub/buildSrc/X.java"))
+        assertEquals(FileKind.OTHER, kind("sub/gradle/libs.toml"))
+    }
+
+    @Test
+    fun `a source root beats the build logic folder rules`() {
+        val snapshot = classifier.classify("plugin/src/main/kotlin/com/acme/gradle/Plugin.kt")
+        assertEquals(FileKind.SOURCE, snapshot.kind)
+        assertEquals(FileKind.SOURCE, kind("plugin/src/main/kotlin/buildSrc/A.kt"))
+        assertEquals(FileKind.RESOURCE, kind("plugin/src/main/resources/gradle/x.txt"))
+    }
+
+    @Test
+    fun `file name rules still win inside a source root`() {
+        assertEquals(FileKind.BUILD_LOGIC, kind("plugin/src/main/kotlin/a/build.gradle.kts"))
+        assertEquals(FileKind.BUILD_LOGIC, kind("plugin/src/main/kotlin/a/gradle.properties"))
+    }
+
+    @Test
+    fun `a top level resource root does not swallow the gradle folder`() {
+        val top = FileClassifier(emptyList(), listOf(""), emptyList())
+        assertEquals(FileKind.BUILD_LOGIC, top.classify("gradle/libs.versions.toml").kind)
     }
 
     @Test

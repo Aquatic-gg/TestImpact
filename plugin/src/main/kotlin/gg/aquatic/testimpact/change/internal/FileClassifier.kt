@@ -42,8 +42,9 @@ internal class FileClassifier(
         val directories = segments.dropLast(1)
         if (name.endsWith(".gradle") || name.endsWith(".gradle.kts") || name.endsWith(".lockfile")) return true
         if (name == "gradle.properties" || name.startsWith("settings.gradle") || name.startsWith("gradlew")) return true
-        if (directories.any { it == "gradle" || it == "buildSrc" || it == "build-logic" }) return true
-        return buildLogicRoots.any { under(path, it) }
+        if (buildLogicRoots.any { under(path, it) }) return true
+        val inRoot = (sourceRoots + resourceRoots).any { it.isNotEmpty() && under(path, it) }
+        return !inRoot && directories.firstOrNull() in BUILD_LOGIC_DIRECTORIES
     }
 
     private fun under(path: String, root: String): Boolean = root.isEmpty() || path.startsWith("$root/")
@@ -51,4 +52,8 @@ internal class FileClassifier(
     private fun normalizeRoot(root: String): String = normalizePath(root).trim('/')
 
     private fun normalizePath(path: String): String = path.replace('\\', '/').trimStart('/')
+
+    private companion object {
+        val BUILD_LOGIC_DIRECTORIES = setOf("gradle", "buildSrc", "build-logic")
+    }
 }
