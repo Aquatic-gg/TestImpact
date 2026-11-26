@@ -16,7 +16,7 @@ internal object SourceScanner {
     }
 
     private fun normalize(text: String): String =
-        text.removePrefix("﻿").replace("\r\n", "\n").replace('\r', '\n')
+        text.removePrefix("\uFEFF").replace("\r\n", "\n").replace('\r', '\n')
 
     private enum class Kind { IDENT, QUOTED, STRING, PUNCT }
 

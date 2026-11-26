@@ -99,6 +99,26 @@ class GitRunnerTest {
         assertEquals("0", String(runner().run(dir, fixture("env", "GIT_TERMINAL_PROMPT")).stdout).trim())
     }
 
+    @Test
+    fun everyRepositoryLocalVariableIsRemoved() {
+        val local = listOf(
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_CONFIG", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT",
+            "GIT_OBJECT_DIRECTORY", "GIT_DIR", "GIT_WORK_TREE", "GIT_IMPLICIT_WORK_TREE", "GIT_GRAFT_FILE",
+            "GIT_INDEX_FILE", "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE", "GIT_PREFIX", "GIT_SHALLOW_FILE",
+            "GIT_COMMON_DIR",
+        )
+        val env = local.associateWith { "poison" }
+        for (name in local) {
+            assertEquals("null", String(runner(env = env).run(dir, fixture("env", name)).stdout).trim(), name)
+        }
+    }
+
+    @Test
+    fun extraEnvironmentIsAppliedAfterTheRemoval() {
+        val result = runner().run(dir, fixture("env", "GIT_INDEX_FILE"), extraEnv = mapOf("GIT_INDEX_FILE" to "copy"))
+        assertEquals("copy", String(result.stdout).trim())
+    }
+
     private companion object {
         const val FIXTURE = """
 import java.util.Arrays;

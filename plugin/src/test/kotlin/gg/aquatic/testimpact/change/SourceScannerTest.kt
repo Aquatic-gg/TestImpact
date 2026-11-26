@@ -165,8 +165,8 @@ class SourceScannerTest {
         val expected = kotlin(text)
         assertEquals(expected, kotlin(text.replace("\n", "\r\n")))
         assertEquals(expected, kotlin(text.replace("\n", "\r")))
-        assertEquals(expected, kotlin("﻿$text"))
-        assertEquals(expected, kotlin("﻿" + text.replace("\n", "\r\n")))
+        assertEquals(expected, kotlin("\uFEFF$text"))
+        assertEquals(expected, kotlin("\uFEFF" + text.replace("\n", "\r\n")))
     }
 
     @Test

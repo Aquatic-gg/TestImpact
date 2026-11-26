@@ -19,22 +19,31 @@ internal class GitRunner(
     private val baseArgs: List<String> = GIT_BASE_ARGS,
 ) {
 
-    fun run(workDir: Path, args: List<String>, stdin: ByteArray? = null): GitResult {
+    /** @param extraEnv set after the repository-local variables are removed, so it may name one of them. */
+    fun run(
+        workDir: Path,
+        args: List<String>,
+        stdin: ByteArray? = null,
+        extraEnv: Map<String, String> = emptyMap(),
+    ): GitResult {
         if (!Files.isDirectory(workDir)) {
             throw GitFailure(UnknownReason.GIT_FAILED, "working directory does not exist: $workDir")
         }
         val label = args.firstOrNull() ?: "git"
-        val inFile = Files.createTempFile("testimpact-git", ".in")
-        val outFile = Files.createTempFile("testimpact-git", ".out")
-        val errFile = Files.createTempFile("testimpact-git", ".err")
+        var inFile: Path? = null
+        var outFile: Path? = null
+        var errFile: Path? = null
         try {
+            inFile = Files.createTempFile("testimpact-git", ".in")
+            outFile = Files.createTempFile("testimpact-git", ".out")
+            errFile = Files.createTempFile("testimpact-git", ".err")
             Files.write(inFile, stdin ?: ByteArray(0))
             val builder = ProcessBuilder(listOf(executable) + baseArgs + args)
                 .directory(workDir.toFile())
                 .redirectInput(inFile.toFile())
                 .redirectOutput(outFile.toFile())
                 .redirectError(errFile.toFile())
-            configureEnvironment(builder.environment())
+            configureEnvironment(builder.environment(), extraEnv)
             val process = try {
                 builder.start()
             } catch (e: IOException) {
@@ -59,13 +68,13 @@ internal class GitRunner(
         } catch (e: IOException) {
             throw GitFailure(UnknownReason.GIT_FAILED, "git $label i/o error: ${e.message}".take(MAX_DETAIL))
         } finally {
-            delete(inFile)
-            delete(outFile)
-            delete(errFile)
+            inFile?.let(::delete)
+            outFile?.let(::delete)
+            errFile?.let(::delete)
         }
     }
 
-    private fun configureEnvironment(env: MutableMap<String, String>) {
+    private fun configureEnvironment(env: MutableMap<String, String>, extraEnv: Map<String, String>) {
         env["LC_ALL"] = "C"
         env["LANG"] = "C"
         env["GIT_TERMINAL_PROMPT"] = "0"
@@ -73,6 +82,7 @@ internal class GitRunner(
         env["GIT_PAGER"] = "cat"
         env.putAll(envOverrides)
         for (name in REMOVED_ENV) env.remove(name)
+        env.putAll(extraEnv)
     }
 
     private fun destroy(process: Process) {
@@ -97,6 +107,12 @@ internal class GitRunner(
         const val MAX_DETAIL = 500
         const val DESTROY_WAIT_SECONDS = 5L
         val GIT_BASE_ARGS = listOf("--no-pager", "-c", "core.quotepath=false", "-c", "color.ui=never")
-        val REMOVED_ENV = listOf("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_PREFIX")
+        // git rev-parse --local-env-vars
+        val REMOVED_ENV = listOf(
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_CONFIG", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT",
+            "GIT_OBJECT_DIRECTORY", "GIT_DIR", "GIT_WORK_TREE", "GIT_IMPLICIT_WORK_TREE", "GIT_GRAFT_FILE",
+            "GIT_INDEX_FILE", "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE", "GIT_PREFIX", "GIT_SHALLOW_FILE",
+            "GIT_COMMON_DIR",
+        )
     }
 }
