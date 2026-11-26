@@ -20,6 +20,7 @@ testing {
             useJUnitJupiter(libs.versions.junit)
             dependencies {
                 implementation(libs.kotlin.test)
+                implementation(libs.kotlin.metadata.jvm)
             }
         }
         register<JvmTestSuite>("functionalTest") {
