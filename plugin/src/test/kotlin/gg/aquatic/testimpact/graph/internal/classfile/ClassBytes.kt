@@ -114,7 +114,15 @@ internal class ClassBytes {
     }
 
     /** A class with the pool above followed by an empty body: no interfaces, fields, methods or attributes. */
-    fun classFile(thisIndex: Int, superIndex: Int = 0, access: Int = 0x21): ByteArray {
+    fun classFile(
+        thisIndex: Int,
+        superIndex: Int = 0,
+        access: Int = 0x21,
+        interfaces: List<Int> = emptyList(),
+        fields: List<ByteArray> = emptyList(),
+        methods: List<ByteArray> = emptyList(),
+        attributes: List<ByteArray> = emptyList(),
+    ): ByteArray {
         val out = ByteArrayOutputStream()
         val data = DataOutputStream(out)
         data.writeInt(0xCAFEBABE.toInt())
@@ -124,7 +132,38 @@ internal class ClassBytes {
         data.writeShort(access)
         data.writeShort(thisIndex)
         data.writeShort(superIndex)
-        repeat(4) { data.writeShort(0) }
+        data.writeShort(interfaces.size)
+        interfaces.forEach { data.writeShort(it) }
+        data.writeShort(fields.size)
+        fields.forEach { data.write(it) }
+        data.writeShort(methods.size)
+        methods.forEach { data.write(it) }
+        data.writeShort(attributes.size)
+        attributes.forEach { data.write(it) }
+        return out.toByteArray()
+    }
+
+    /** An attribute: name index, 4-byte length, [body]. */
+    fun attribute(name: String, body: ByteArray): ByteArray = attributeAt(utf8(name), body)
+
+    fun attributeAt(nameIndex: Int, body: ByteArray, declaredLength: Int = body.size): ByteArray {
+        val out = ByteArrayOutputStream()
+        val data = DataOutputStream(out)
+        data.writeShort(nameIndex)
+        data.writeInt(declaredLength)
+        data.write(body)
+        return out.toByteArray()
+    }
+
+    /** A field or method entry with the given attributes. */
+    fun declaration(access: Int, name: String, descriptor: String, attributes: List<ByteArray> = emptyList()): ByteArray {
+        val out = ByteArrayOutputStream()
+        val data = DataOutputStream(out)
+        data.writeShort(access)
+        data.writeShort(utf8(name))
+        data.writeShort(utf8(descriptor))
+        data.writeShort(attributes.size)
+        attributes.forEach { data.write(it) }
         return out.toByteArray()
     }
 
