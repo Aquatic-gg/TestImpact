@@ -32,7 +32,6 @@ internal object SeedFactsReader {
             literals = literals(pool),
             dynamic = flags and SeedApis.DYNAMIC != 0,
             loadsResources = flags and SeedApis.LOADER != 0,
-            buildsStrings = flags and SeedApis.BUILDER != 0,
             provides = provides,
         )
     }

@@ -22,7 +22,8 @@ Some links between code and tests do not show up in bytecode, so selection can m
 
 - Tests that reach code only through reflection with computed names.
 - Class names inside resources that are not scanned. Scanned are files under `META-INF/` (except `.kotlin_module` and signature files `.SF`, `.RSA`, `.DSA`, `.EC`) and files with the extension `yml`, `yaml`, `properties`, `json`, `xml`, `conf`, `toml`, `txt` or `mf`; other resources count by path only.
-- Reflection on classes outside the package of the reflecting class that is not listed in `dynamicPackages`.- External state such as databases, files outside the build, and the environment.
+- Reflection on classes outside the package of the reflecting class that is not listed in `dynamicPackages`.
+- External state such as databases, files outside the build, and the environment.
 - Non-JVM tests.
 
 Run the full suite on your main branch and before a release. Treat selection as a fast feedback loop, not a replacement for the full run.

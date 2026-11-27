@@ -14,9 +14,8 @@ class SeedGraphTest {
         literals: List<String> = emptyList(),
         dynamic: Boolean = false,
         loads: Boolean = false,
-        builds: Boolean = false,
         provides: List<ServiceProvision> = emptyList(),
-    ) = SeedFacts(name, literals.sorted(), dynamic, loads, builds, provides)
+    ) = SeedFacts(name, literals.sorted(), dynamic, loads, provides)
 
     private fun res(path: String, tokens: List<String> = emptyList(), descriptor: Boolean = tokens.isNotEmpty()) =
         ResourceFacts(path, tokens.sorted(), descriptor)
@@ -114,7 +113,7 @@ class SeedGraphTest {
 
     @Test
     fun `without a naming literal every loader may load the resource`() {
-        val g = graph(listOf(cls("a.L1", loads = true), cls("a.L2", loads = true, builds = true), cls("a.None")))
+        val g = graph(listOf(cls("a.L1", loads = true), cls("a.L2", loads = true), cls("a.None")))
         assertEquals(listOf("a.L1", "a.L2").map { it to SeedKind.RESOURCE_LOADER }, g.pairs("/orphan.txt"))
     }
 
@@ -123,7 +122,7 @@ class SeedGraphTest {
         val g = graph(
             listOf(
                 cls("a.Named", listOf("s.txt"), loads = true),
-                cls("a.Builder", loads = true, builds = true),
+                cls("a.Builder", loads = true),
                 cls("a.Plain", loads = true),
                 cls("a.Holder", listOf("s.txt")),
             ),
@@ -175,9 +174,11 @@ class SeedGraphTest {
     }
 
     @Test
-    fun `any resource loader attributes a resource`() {
-        val g = graph(listOf(cls("a.Loader", loads = true)))
-        assertTrue(g.isAttributed("/logback-test.xml"))
+    fun `a resource loader alone does not attribute a resource`() {
+        val g = graph(listOf(cls("a.Loader", loads = true), cls("a.Holder", listOf("app.xml"))))
+        assertFalse(g.isAttributed("/logback-test.xml"))
+        assertTrue(g.isAttributed("/conf/app.xml"))
+        assertEquals(listOf("a.Loader" to SeedKind.RESOURCE_LOADER), g.pairs("/logback-test.xml"))
     }
 
     @Test
@@ -260,7 +261,7 @@ class SeedGraphTest {
     @Test
     fun `a duplicate class is merged as a union regardless of order`() {
         val one = cls("d.Dup", listOf("t.One"), loads = true)
-        val two = cls("d.Dup", listOf("t.Two"), builds = true, dynamic = true, provides = listOf(ServiceProvision("s.I", listOf("i.B"))))
+        val two = cls("d.Dup", listOf("t.Two"), dynamic = true, provides = listOf(ServiceProvision("s.I", listOf("i.B"))))
         val three = cls("d.Dup", provides = listOf(ServiceProvision("s.I", listOf("i.A"))))
         val a = graph(listOf(one, two, three), listOf(res("r.yml", listOf("x.A")), res("r.yml", listOf("x.B"))))
         val b = graph(listOf(three, two, one), listOf(res("r.yml", listOf("x.B")), res("r.yml", listOf("x.A"))))

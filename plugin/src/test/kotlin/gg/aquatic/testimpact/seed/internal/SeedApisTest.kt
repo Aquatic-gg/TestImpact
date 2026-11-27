@@ -51,7 +51,7 @@ class SeedApisTest {
     fun `bootstrap owners of lambdas, templates and records are not dynamic`() {
         assertEquals(0, SeedApis.classify("java.lang.invoke.LambdaMetafactory", "metafactory"))
         assertEquals(0, SeedApis.classify("java.lang.runtime.ObjectMethods", "bootstrap"))
-        assertEquals(SeedApis.BUILDER, SeedApis.classify("java.lang.invoke.StringConcatFactory", "makeConcatWithConstants"))
+        assertEquals(0, SeedApis.classify("java.lang.invoke.StringConcatFactory", "makeConcatWithConstants"))
     }
 
     @Test
@@ -104,17 +104,5 @@ class SeedApisTest {
             assertEquals(SeedApis.DYNAMIC, SeedApis.classify(owner, "callBy"), owner)
         }
         assertEquals(0, SeedApis.classify("kotlin.reflect.KFunction", "getName"))
-    }
-
-    @Test
-    fun `string builders are recognised`() {
-        assertEquals(SeedApis.BUILDER, SeedApis.classify("java.lang.StringBuilder", "append"))
-        assertEquals(SeedApis.BUILDER, SeedApis.classify("java.lang.StringBuffer", "append"))
-        for (name in listOf("format", "formatted", "concat", "join")) {
-            assertEquals(SeedApis.BUILDER, SeedApis.classify("java.lang.String", name), name)
-        }
-        assertEquals(SeedApis.BUILDER, SeedApis.classify("kotlin.jvm.internal.Intrinsics", "stringPlus"))
-        assertEquals(0, SeedApis.classify("java.lang.String", "length"))
-        assertEquals(0, SeedApis.classify("kotlin.jvm.internal.Intrinsics", "checkNotNull"))
     }
 }

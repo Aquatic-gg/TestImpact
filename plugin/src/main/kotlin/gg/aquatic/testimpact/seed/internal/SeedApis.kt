@@ -8,7 +8,6 @@ package gg.aquatic.testimpact.seed.internal
 internal object SeedApis {
     const val DYNAMIC = 1
     const val LOADER = 2
-    const val BUILDER = 4
 
     private val classReflection = setOf(
         "forName", "getMethod", "getMethods", "getDeclaredMethod", "getDeclaredMethods",
@@ -28,14 +27,11 @@ internal object SeedApis {
     private val kotlinCalls = setOf("call", "callBy")
     private const val KOTLIN_REFLECT = "kotlin.reflect."
     private const val RESOURCE_BUNDLE = "java.util.ResourceBundle"
-    private val stringBuilders = setOf("java.lang.StringBuilder", "java.lang.StringBuffer", "java.lang.invoke.StringConcatFactory")
-    private val stringMethods = setOf("format", "formatted", "concat", "join")
 
     fun classify(owner: String, name: String): Int {
         var flags = 0
         if (isDynamic(owner, name)) flags = flags or DYNAMIC
         if (isLoader(owner, name)) flags = flags or LOADER
-        if (isBuilder(owner, name)) flags = flags or BUILDER
         return flags
     }
 
@@ -59,11 +55,5 @@ internal object SeedApis {
         owner == REFLECT_ARRAY -> false
         owner.startsWith(KOTLIN_REFLECT) && name in kotlinCalls -> true
         else -> dynamicPrefixes.any(owner::startsWith)
-    }
-
-    private fun isBuilder(owner: String, name: String): Boolean = when (owner) {
-        "java.lang.String" -> name in stringMethods
-        "kotlin.jvm.internal.Intrinsics" -> name == "stringPlus"
-        else -> owner in stringBuilders
     }
 }

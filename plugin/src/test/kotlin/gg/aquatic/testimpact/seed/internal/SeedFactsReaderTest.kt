@@ -88,7 +88,6 @@ class SeedFactsReaderTest {
 
         assertTrue(facts.dynamic)
         assertFalse(facts.loadsResources)
-        assertFalse(facts.buildsStrings)
     }
 
     @Test
@@ -107,15 +106,6 @@ class SeedFactsReaderTest {
     }
 
     @Test
-    fun `string building is flagged`() {
-        val facts = SeedFactsReader.read(classCalling(method("java/lang/StringBuilder", "append")))
-
-        assertTrue(facts.buildsStrings)
-        assertFalse(facts.dynamic)
-        assertFalse(facts.loadsResources)
-    }
-
-    @Test
     fun `plain calls and primitive array owners set no flag`() {
         val facts = SeedFactsReader.read(
             classCalling(method("java/util/List", "size"), method("[I", "clone"), method("java/lang/reflect/Array", "newInstance")),
@@ -123,7 +113,6 @@ class SeedFactsReaderTest {
 
         assertFalse(facts.dynamic)
         assertFalse(facts.loadsResources)
-        assertFalse(facts.buildsStrings)
     }
 
     private fun moduleInfo(truncateBy: Int = 0): ByteArray {

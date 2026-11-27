@@ -30,15 +30,16 @@ internal class SeedGraph private constructor(
     fun isDynamic(name: String): Boolean = name in dynamicNames
 
     /**
-     * Whether some scanned class can consume [node]. False for a resource that no class names and no class loads
-     * (a test framework or logging configuration read by a library), and for a services file whose interface was not
-     * scanned: the graph cannot attribute such a change, so the caller must run everything. Classes are always
-     * attributed.
+     * Whether a scanned class is known to consume [node]: a class holds a literal equal to a slash-boundary suffix
+     * of the resource path, or the resource is a services file whose interface was scanned. False means the consumer
+     * is unknown (a test framework or logging configuration read by a library, or a name built at runtime);
+     * [dependents] still returns the resource loaders as a fallback for the latter, but a caller that needs the
+     * "uncertain, run everything" guarantee must run everything for such a node. Classes are always attributed.
      */
     fun isAttributed(node: String): Boolean {
         if (!node.startsWith("/")) return true
         serviceFiles[node]?.let { return it in byName }
-        return loaders.isNotEmpty() || suffixes(node.substring(1)).any { it in holders }
+        return suffixes(node.substring(1)).any { it in holders }
     }
 
     /** What depends on [node], a class name or a resource node. */
@@ -162,7 +163,6 @@ internal class SeedGraph private constructor(
                 literals = group.flatMap { it.literals }.distinct().sorted(),
                 dynamic = group.any { it.dynamic },
                 loadsResources = group.any { it.loadsResources },
-                buildsStrings = group.any { it.buildsStrings },
                 provides = group.flatMap { it.provides }.groupBy { it.service }
                     .map { (service, parts) -> ServiceProvision(service, parts.flatMap { it.providers }.distinct().sorted()) }
                     .sortedBy { it.service },
