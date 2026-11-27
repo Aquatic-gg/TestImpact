@@ -6,4 +6,7 @@ internal enum class SelectReason {
 
     /** A reached class is a global extension point that can affect every test class of the task. */
     GLOBAL,
+
+    /** The class matches an `alwaysRun` pattern. */
+    ALWAYS_RUN,
 }

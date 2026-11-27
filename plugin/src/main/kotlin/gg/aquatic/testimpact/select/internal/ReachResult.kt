@@ -2,6 +2,7 @@ package gg.aquatic.testimpact.select.internal
 
 import gg.aquatic.testimpact.graph.Edge
 import gg.aquatic.testimpact.graph.EdgeKind
+import gg.aquatic.testimpact.seed.SeedKind
 import gg.aquatic.testimpact.select.ReachPath
 
 /**
@@ -15,7 +16,12 @@ internal class ReachResult(
     private val origin: IntArray,
     private val origins: List<String>,
     private val selectedAt: Map<String, Int>,
+    private val resourceNodes: List<String> = emptyList(),
+    private val seedHops: Map<Int, SeedKind> = emptyMap(),
 ) {
+    private fun nameOf(index: Int): String =
+        if (index < classes.size) classes[index] else resourceNodes[index - classes.size]
+
     /** Selected candidate names, sorted. */
     val selected: List<String> = selectedAt.keys.sorted()
 
@@ -31,12 +37,17 @@ internal class ReachResult(
     private fun buildPath(start: Int): ReachPath {
         var node = start
         val edges = ArrayList<Edge>()
+        val hops = ArrayList<SeedKind?>()
         while (parent[node] >= 0) {
-            edges.add(Edge(classes[node], classes[parent[node]], EdgeKind.entries[kind[node].toInt()]))
+            edges.add(Edge(nameOf(node), nameOf(parent[node]), EdgeKind.entries[kind[node].toInt()]))
+            hops.add(seedHops[node])
             node = parent[node]
         }
         edges.reverse()
-        return ReachPath(origins[origin[node]], classes[node], edges)
+        hops.reverse()
+        val seedKinds = HashMap<Int, SeedKind>()
+        for ((position, hop) in hops.withIndex()) if (hop != null) seedKinds[position] = hop
+        return ReachPath(origins[origin[node]], nameOf(node), edges, seedKinds)
     }
 
     companion object {

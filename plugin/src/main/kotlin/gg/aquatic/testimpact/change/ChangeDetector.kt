@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
+import java.util.zip.ZipFile
 
 /**
  * Turns the git view of a project into changed files with the classes and resources they touch. Never throws.
@@ -39,6 +40,7 @@ internal object ChangeDetector {
                 input.sourceRoots.mapNotNull(paths::relativize),
                 input.resourceRoots.mapNotNull(paths::relativize),
                 input.buildLogicRoots.mapNotNull(paths::relativize),
+                input.conventionalRoots,
             )
         }
         var cached: FileClassifier? = null
@@ -67,6 +69,7 @@ internal object ChangeDetector {
         private val classOutputDirs: List<Path>,
     ) {
         private val rootReal: Path = read.topLevel.toRealPath()
+        private val jarEntries = HashMap<Path, Set<String>>()
 
         fun changed(entry: DiffEntry): ChangedFile {
             val before = entry.oldPath?.let(::before)
@@ -103,7 +106,19 @@ internal object ChangeDetector {
 
         private fun compiled(binaryName: String): Boolean {
             val relative = binaryName.replace('.', '/') + ".class"
-            return classOutputDirs.any { Files.isRegularFile(it.resolve(relative)) }
+            return classOutputDirs.any { root ->
+                if (Files.isDirectory(root)) Files.isRegularFile(root.resolve(relative))
+                else relative in jarEntries.getOrPut(root) { jarEntryNames(root) }
+            }
+        }
+
+        private fun jarEntryNames(jar: Path): Set<String> {
+            if (!Files.isRegularFile(jar)) return emptySet()
+            ZipFile(jar.toFile()).use { zip ->
+                val names = HashSet<String>()
+                for (entry in zip.entries()) if (!entry.isDirectory) names += entry.name
+                return names
+            }
         }
 
         private fun readWorktree(path: String): ByteArray? {

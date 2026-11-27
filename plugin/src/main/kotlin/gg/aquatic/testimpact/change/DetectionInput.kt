@@ -3,6 +3,11 @@ package gg.aquatic.testimpact.change
 import java.nio.file.Path
 import java.time.Duration
 
+/**
+ * @property classOutputDirs class directories or jars that hold the compiled classes of changed sources.
+ * @property conventionalRoots also treat `src/<set>/java|kotlin` as source and `src/<set>/resources` as resource
+ * roots when no explicit root matches, for modules whose source sets are not known.
+ */
 internal data class DetectionInput(
     val projectDir: Path,
     val baseRef: String?,
@@ -12,4 +17,5 @@ internal data class DetectionInput(
     val buildLogicRoots: List<Path>,
     val gitExecutable: String = "git",
     val gitTimeout: Duration = Duration.ofSeconds(60),
+    val conventionalRoots: Boolean = false,
 )

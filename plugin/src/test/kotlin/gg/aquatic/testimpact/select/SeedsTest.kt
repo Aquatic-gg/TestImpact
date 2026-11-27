@@ -109,6 +109,15 @@ class SeedsTest {
     }
 
     @Test
+    fun `a java or kotlin file outside every source root forces CHANGE_NOT_MAPPED`() {
+        for (path in listOf("tools/Script.kt", "legacy/A.java")) {
+            val forced = Seeds.from(known(modified(FileSnapshot(path, FileKind.OTHER)))).forced
+            assertEquals(SelectionUnknownReason.CHANGE_NOT_MAPPED, forced?.reason)
+            assertEquals("source outside known source roots: $path", forced?.detail)
+        }
+    }
+
+    @Test
     fun `seeds are sorted and deduplicated and the first problem wins`() {
         val b = modified(source("b/B.kt", "b.B"))
         val a = modified(source("a/A.kt", "a.A"))

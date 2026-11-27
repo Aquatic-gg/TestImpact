@@ -10,6 +10,7 @@ internal class FileClassifier(
     sourceRoots: List<String>,
     resourceRoots: List<String>,
     buildLogicRoots: List<String>,
+    private val conventionalRoots: Boolean = false,
 ) {
     private val sourceRoots = sourceRoots.map(::normalizeRoot).distinct()
     private val resourceRoots = resourceRoots.map(::normalizeRoot).distinct()
@@ -33,7 +34,23 @@ internal class FileClassifier(
                 return FileSnapshot(path, FileKind.RESOURCE, resourcePath = relative)
             }
         }
+        if (conventionalRoots) conventional(path)?.let { return it }
         return FileSnapshot(path, FileKind.OTHER)
+    }
+
+    private fun conventional(path: String): FileSnapshot? {
+        val segments = path.split('/')
+        for (i in 0 until segments.size - 3) {
+            if (segments[i] != "src") continue
+            val directory = segments[i + 2]
+            when (directory) {
+                "java", "kotlin" ->
+                    if (path.endsWith(".kt") || path.endsWith(".java")) return FileSnapshot(path, FileKind.SOURCE)
+                "resources" ->
+                    return FileSnapshot(path, FileKind.RESOURCE, resourcePath = segments.drop(i + 3).joinToString("/"))
+            }
+        }
+        return null
     }
 
     private fun isBuildLogic(path: String): Boolean {

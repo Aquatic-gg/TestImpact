@@ -2,6 +2,8 @@ package gg.aquatic.testimpact.change
 
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -251,6 +253,30 @@ class ChangeDetectorTest {
         val missing = known.file(path("Missing")).after
         assertEquals(false, missing?.classesResolved)
         assertEquals(emptyList(), missing?.classes)
+    }
+
+    @Test
+    fun classCompiledOnlyIntoAJarResolves() = withFeature { repo ->
+        val jar = repo.base.resolve("dependency.jar")
+        ZipOutputStream(Files.newOutputStream(jar)).use { zip ->
+            zip.putNextEntry(ZipEntry("p/InJar.class"))
+            zip.closeEntry()
+        }
+        repo.write(path("InJar"), kt("p", "InJar"))
+        repo.write(path("NotInJar"), kt("p", "NotInJar"))
+        val known = known(ChangeDetector.detect(input(repo, "main").copy(classOutputDirs = listOf(jar)), repo.env))
+        assertEquals(true, known.file(path("InJar")).after?.classesResolved)
+        assertEquals(listOf("p.InJar"), known.file(path("InJar")).after?.classes)
+        assertEquals(false, known.file(path("NotInJar")).after?.classesResolved)
+    }
+
+    @Test
+    fun corruptJarMakesDetectionUnknown() = withFeature { repo ->
+        val jar = repo.base.resolve("broken.jar")
+        Files.write(jar, "not a zip file".toByteArray())
+        repo.write(path("A"), kt("p", "A"))
+        val detection = ChangeDetector.detect(input(repo, "main").copy(classOutputDirs = listOf(jar)), repo.env)
+        assertUnknown(UnknownReason.ANALYSIS_ERROR, detection)
     }
 
     @Test
