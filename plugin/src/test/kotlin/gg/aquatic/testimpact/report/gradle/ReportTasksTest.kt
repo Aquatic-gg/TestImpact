@@ -29,6 +29,17 @@ class ReportTasksTest {
     }
 
     @Test
+    fun `the report lists the Test tasks and leaves their quick tasks out`() {
+        val project = project(AtomicInteger())
+
+        val report = project.tasks.getByName(ReportTasks.TASK_NAME) as TestImpactReportTask
+
+        val quick = project.tasks.withType(GradleTest::class.java).names.filter { it.startsWith("testImpactQuick") }
+        assertEquals(listOf("testImpactQuickLazyTest", "testImpactQuickTest"), quick.sorted())
+        assertEquals(listOf(":lazyTest", ":test"), report.runs.get().map { it.taskPath }.sorted())
+    }
+
+    @Test
     fun `configuring the report task realises the test tasks`() {
         val realised = AtomicInteger()
         val project = project(realised)

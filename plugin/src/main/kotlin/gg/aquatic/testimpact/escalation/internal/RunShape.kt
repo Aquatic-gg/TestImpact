@@ -19,5 +19,8 @@ internal object RunShape {
         false
     }
 
+    /** Whether the build named tests for the task (`--tests`, or an IDE launch adding its filter): they win over the memory. */
+    fun userRequested(test: Test, baseline: Set<String>): Boolean = !isFull(test, baseline)
+
     fun phaseOf(test: Test, baseline: Set<String>): RunPhase = if (isFull(test, baseline)) RunPhase.FULL else RunPhase.PARTIAL
 }
