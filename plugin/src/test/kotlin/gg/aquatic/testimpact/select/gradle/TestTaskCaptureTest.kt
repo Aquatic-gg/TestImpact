@@ -52,6 +52,24 @@ class TestTaskCaptureTest {
     }
 
     @kotlin.test.Test
+    fun `classpath and test class directories reassigned after the capture are read`() {
+        val project = project()
+        val test = testTask(project)
+        val capture = capture(project, test)
+        val tests = Files.createDirectories(dir.resolve("classes/test"))
+        val main = Files.createDirectories(dir.resolve("classes/main"))
+        test.testClassesDirs = project.files(tests.toFile())
+        test.classpath = project.files(tests.toFile())
+        test.classpath += project.files(main.toFile())
+        test.useJUnitPlatform()
+
+        val input = capture.resolve()
+
+        assertEquals(listOf(tests.toAbsolutePath().normalize()), input.testRoots)
+        assertTrue(main.toAbsolutePath().normalize() in input.otherRoots)
+    }
+
+    @kotlin.test.Test
     fun `testng is recognised`() {
         val project = project()
         val test = testTask(project)
