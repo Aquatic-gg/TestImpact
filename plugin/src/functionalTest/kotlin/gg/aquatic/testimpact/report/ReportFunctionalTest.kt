@@ -1,5 +1,6 @@
 package gg.aquatic.testimpact.report
 
+import gg.aquatic.testimpact.fallback.FallbackFixture
 import gg.aquatic.testimpact.select.MultiModuleFixture
 import groovy.json.JsonSlurper
 import org.gradle.testkit.runner.BuildResult
@@ -41,6 +42,9 @@ class ReportFunctionalTest {
         git("add", "-A")
         git("-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "commit", "-m", "initial")
         git("checkout", "-b", "feature")
+        for (module in MultiModuleFixture.modules) {
+            for (task in listOf("test", "integrationTest")) FallbackFixture.primeHistory(projectDir, module, task)
+        }
         val core = projectDir.resolve("a/src/main/java/a/Core.java")
         Files.writeString(core, Files.readString(core).replace("return 1;", "return 2;"))
     }
@@ -180,18 +184,18 @@ class ReportFunctionalTest {
 
         report("--base", "main")
 
-        val detail = "resource change: a/src/main/resources/x.properties"
+        val detail = "a/src/main/resources/x.properties"
         for ((module, path) in listOf("c" to ":c:test", "c" to ":c:integrationTest", "d" to ":d:test", "f" to ":f:test")) {
             val task = task(module, path)
             assertEquals("full", task["result"], path)
             @Suppress("UNCHECKED_CAST")
             val rule = task["rule"] as Map<String, Any?>
-            assertEquals("CHANGE_NOT_MAPPED", rule["reason"], path)
+            assertEquals("RESOURCE_CHANGE", rule["reason"], path)
             assertEquals(detail, rule["detail"], path)
         }
         @Suppress("UNCHECKED_CAST")
         val forced = assertNotNull(json("c")["forced"]) as Map<String, Any?>
-        assertEquals("CHANGE_NOT_MAPPED", forced["reason"])
+        assertEquals("RESOURCE_CHANGE", forced["reason"])
         assertTrue(detail in text("c"), text("c"))
     }
 }

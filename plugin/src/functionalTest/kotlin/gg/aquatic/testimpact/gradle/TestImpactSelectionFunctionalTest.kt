@@ -1,5 +1,6 @@
 package gg.aquatic.testimpact.gradle
 
+import gg.aquatic.testimpact.fallback.FallbackFixture
 import org.gradle.testkit.runner.BuildResult
 import org.gradle.testkit.runner.GradleRunner
 import org.gradle.testkit.runner.TaskOutcome
@@ -25,6 +26,7 @@ class TestImpactSelectionFunctionalTest {
     fun `a changed class in a single module runs only its test`() {
         ImpactFixture.singleModule(projectDir)
         GitFixture.init(projectDir)
+        FallbackFixture.primeHistory(projectDir)
         ImpactFixture.file(projectDir, "src/main/java/app/Calc.java", ImpactFixture.calc(2))
 
         val result = run("test")
@@ -67,6 +69,7 @@ class TestImpactSelectionFunctionalTest {
         ImpactFixture.singleModule(projectDir, extra = suite)
         ImpactFixture.file(projectDir, "src/functionalTest/java/app/FuncTest.java", ImpactFixture.test("FuncTest", "new Calc().add(1, 2);"))
         GitFixture.init(projectDir)
+        FallbackFixture.primeHistory(projectDir)
         ImpactFixture.file(projectDir, "src/functionalTest/java/app/FuncTest.java", ImpactFixture.test("FuncTest", "new Calc().add(2, 2);"))
 
         val result = run("test")
@@ -93,6 +96,7 @@ class TestImpactSelectionFunctionalTest {
     fun `a test change in a dependency module does not force its dependants`() {
         ImpactFixture.multiModule(projectDir)
         GitFixture.init(projectDir)
+        primeModules()
         ImpactFixture.file(
             projectDir, "a/src/test/java/a/CoreTest.java",
             "package a;\n\nimport org.junit.jupiter.api.Test;\n\nclass CoreTest {\n    @Test\n    void runs() { new Core().value(); new Core().value(); }\n}\n",
@@ -124,6 +128,7 @@ class TestImpactSelectionFunctionalTest {
     fun `excluding the selection task after a partial run does not reuse the partial result`() {
         ImpactFixture.singleModule(projectDir)
         GitFixture.init(projectDir)
+        FallbackFixture.primeHistory(projectDir)
         ImpactFixture.file(projectDir, "src/main/java/app/Calc.java", ImpactFixture.calc(2))
 
         val partial = run("test")
@@ -156,27 +161,29 @@ class TestImpactSelectionFunctionalTest {
         ImpactFixture.singleModule(projectDir)
         ImpactFixture.file(projectDir, "src/main/resources/app.properties", "a=1\n")
         GitFixture.init(projectDir)
+        FallbackFixture.primeHistory(projectDir)
 
         ImpactFixture.file(projectDir, "src/main/resources/app.properties", "a=2\n")
         val resource = run("test")
-        assertContains(resource.output, "full: change-not-mapped: resource change")
+        assertContains(resource.output, "full: resource-change: src/main/resources/app.properties")
         assertTrue(Files.exists(report("", "app.CalcTest")))
         assertTrue(Files.exists(report("", "app.OtherTest")))
 
         GitFixture.commitAll(projectDir, "resource")
         Files.writeString(projectDir.resolve("build.gradle.kts"), Files.readString(projectDir.resolve("build.gradle.kts")) + "\n// edited\n")
         val script = run("test")
-        assertContains(script.output, "full: change-not-mapped: build logic change")
+        assertContains(script.output, "full: build-logic: build.gradle.kts")
     }
 
     @Test
     fun `a build outside a git repository runs the full task and succeeds`() {
         ImpactFixture.singleModule(projectDir)
+        FallbackFixture.primeHistory(projectDir)
 
         val result = run("test")
 
         assertEquals(TaskOutcome.SUCCESS, result.task(":test")?.outcome)
-        assertContains(result.output, "full: changes-unknown")
+        assertContains(result.output, "full: no-base")
         assertTrue(Files.exists(report("", "app.CalcTest")))
     }
 
@@ -188,6 +195,7 @@ class TestImpactSelectionFunctionalTest {
         )
         ImpactFixture.file(projectDir, "src/test/java/app/OtherIT.java", ImpactFixture.test("OtherIT", "new Other().name();"))
         GitFixture.init(projectDir)
+        FallbackFixture.primeHistory(projectDir)
         ImpactFixture.file(projectDir, "src/main/java/app/Calc.java", ImpactFixture.calc(2))
 
         val result = run("test")
@@ -200,6 +208,7 @@ class TestImpactSelectionFunctionalTest {
     fun `a clean tree skips everything and always run classes still run`() {
         ImpactFixture.singleModule(projectDir)
         GitFixture.init(projectDir)
+        FallbackFixture.primeHistory(projectDir)
 
         val clean = run("test")
         assertEquals(TaskOutcome.SKIPPED, clean.task(":test")?.outcome)
@@ -246,6 +255,7 @@ class TestImpactSelectionFunctionalTest {
     fun `isolated projects report no problem from the plugin`() {
         ImpactFixture.singleModule(projectDir)
         GitFixture.init(projectDir)
+        FallbackFixture.primeHistory(projectDir)
         ImpactFixture.file(projectDir, "src/main/java/app/Calc.java", ImpactFixture.calc(2))
 
         val result = run("test", "-Dorg.gradle.unsafe.isolated-projects=true")
@@ -258,6 +268,7 @@ class TestImpactSelectionFunctionalTest {
     fun `the oldest supported gradle selects like the current one`() {
         ImpactFixture.singleModule(projectDir)
         GitFixture.init(projectDir)
+        FallbackFixture.primeHistory(projectDir)
         ImpactFixture.file(projectDir, "src/main/java/app/Calc.java", ImpactFixture.calc(2))
 
         val result = run("test", version = "9.0")
@@ -271,7 +282,12 @@ class TestImpactSelectionFunctionalTest {
     private fun multiModuleChanged() {
         ImpactFixture.multiModule(projectDir)
         GitFixture.init(projectDir)
+        primeModules()
         ImpactFixture.file(projectDir, "a/src/main/java/a/Core.java", ImpactFixture.core(2))
+    }
+
+    private fun primeModules() {
+        listOf("a", "b", "c", "k", "e").forEach { FallbackFixture.primeHistory(projectDir, it) }
     }
 
     private fun offBuildIsStock(
