@@ -5,6 +5,7 @@ import gg.aquatic.testimpact.change.internal.FileClassifier
 import gg.aquatic.testimpact.change.internal.GitRead
 import gg.aquatic.testimpact.change.internal.GitRepository
 import gg.aquatic.testimpact.change.internal.GitRunner
+import gg.aquatic.testimpact.change.internal.NestedBuilds
 import gg.aquatic.testimpact.change.internal.RepoPaths
 import gg.aquatic.testimpact.change.internal.SourceScanner
 import java.io.IOException
@@ -63,10 +64,14 @@ internal object ChangeDetector {
 
     private fun deriveOrThrow(read: GitRead.Ok, input: DetectionInput): ChangeDetection {
         val paths = RepoPaths(read.topLevel)
+        val changed = read.entries.flatMap { listOfNotNull(it.oldPath, it.newPath) } + read.untracked
+        val nested = input.settingsDir?.let(paths::relativize)
+            ?.let { NestedBuilds.containing(read.topLevel, it, changed) }
+            .orEmpty()
         val classifier = FileClassifier(
             input.sourceRoots.mapNotNull(paths::relativize),
             input.resourceRoots.mapNotNull(paths::relativize),
-            input.buildLogicRoots.mapNotNull(paths::relativize),
+            input.buildLogicRoots.mapNotNull(paths::relativize) + nested,
             input.conventionalRoots,
         )
         val snapshots = Snapshots(read, classifier, input.classOutputDirs, input.ownSourceRoots)

@@ -12,13 +12,16 @@ import java.util.Locale
 internal object SelectionDecision {
 
     /**
-     * The decision that needs neither change detection nor selection: [TestImpactMode.FULL], or a `--tests` filter
-     * from the user. Null when the analysis has to run.
+     * The decision that needs neither change detection nor selection: [TestImpactMode.FULL], [TestImpactMode.OFF]
+     * (only the report asks; that mode adds no selection task), or a `--tests` filter from the user. Null when the
+     * analysis has to run.
      */
     fun shortCircuit(taskPath: String, mode: TestImpactMode, userTests: Boolean, millis: Long): TaskSelection? =
         when {
             mode == TestImpactMode.FULL ->
                 full(taskPath, mode, TaskSelection.RULE_MODE_FULL, "mode is full", millis)
+            mode == TestImpactMode.OFF ->
+                full(taskPath, mode, TaskSelection.RULE_MODE_OFF, "mode is off", millis)
             userTests ->
                 full(taskPath, mode, TaskSelection.RULE_USER_TESTS, "the build was given --tests", millis)
             else -> null

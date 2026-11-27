@@ -52,7 +52,7 @@ TestImpact :app:integrationTest: changed ?, selected all test classes, full: cha
 - `-x testImpactSelect<Task>` leaves the selection out: that `Test` task then runs in full, also when an earlier build left a selection behind.
 - Git is read once per build and repository, not once per `Test` task, and the class files of a root are scanned once however many tasks have it on their classpath.
 - On a detached HEAD, which is what a pull-request checkout of most CI systems is, the changes are measured only when `baseRef` is set and resolves. Without `baseRef` the whole task runs (`changes-unknown`), because the default candidates are guesses that suit a checked-out branch.
-- Changes in other modules are found through the conventional layout `src/<set>/java`, `src/<set>/kotlin` and `src/<set>/resources`. A changed source file whose classes the task's class graph does not know, such as a test of another module, does not affect that task. A Java or Kotlin file outside every known layout runs the full task, and so does any resource change or a change of build logic.
+- Changes in other modules are found through the conventional layout `src/<set>/java`, `src/<set>/kotlin` and `src/<set>/resources`. A changed source file whose classes the task's class graph does not know, such as a test of another module, does not affect that task. A Java or Kotlin file outside every known layout runs the full task, and so does any resource change or a change of build logic. Build logic is a build script, `buildSrc`, `build-logic` and `gradle` next to the settings file, and any file of a nested build below it, that is a directory with its own settings file such as an included build.
 - Only `Test` tasks that exist after the project is evaluated are wired. A task created later runs as without the plugin.
 
 ### Mode
@@ -112,7 +112,7 @@ Known gaps:
 
 ## Report
 
-`testImpactReport` shows what would be selected for the current changes, and why. It runs the change detection and the selection for every Test task of its project at execution time and writes the result; it runs no test.
+`testImpactReport` shows what would be selected for the current changes, and why. For every Test task of its project it runs, at execution time, the same decision as the task's `testImpactSelect<Task>`: the change detection against the task's own source roots, the selection, `mode`, `--tests` and the wide-change rule, with the settings of the `testImpact` block. It writes the result and runs no test.
 
 ```
 ./gradlew testImpactReport
@@ -120,8 +120,9 @@ Known gaps:
 ./gradlew testImpactReport --explain com.example.FooTest
 ```
 
-- `--base <ref>` compares with that git ref instead of the `baseRef` of the `testImpact` block, or the default bases when that is not set. The ref has at most 256 characters. The report applies the same `alwaysRun` and `dynamicPackages` rules and the same resource links as the selection of a build; in `report.txt` a hop through such a link is named by its seed kind (for example `SERVICE`), in `report.json` by `path[].seed`.
+- `--base <ref>` compares with that git ref instead of the `baseRef` of the `testImpact` block, or the default bases when that is not set. It is checked like `baseRef` (at most 255 characters, no whitespace or control characters, no leading `-`, no `..` at either end), and an invalid ref fails the task. The report applies the same `alwaysRun` and `dynamicPackages` rules and the same resource links as the selection of a build; in `report.txt` a hop through such a link is named by its seed kind (for example `SERVICE`), in `report.json` by `path[].seed`.
 - `--explain <class>` prints, for each Test task of the project, the chain from the changed file to the class, the rule that forced a full run, or that the class is not selected. A nested class is explained by its top-level class. An invalid class name fails the task.
+- `changes` are the files the first task (by path) read; every task of the project reads the same files. `forced` is set when every task that read them is forced to a full run by the same rule. When no task read the changes, because the project has no Test task or `mode` or `--tests` decided every task first, `changes.state` is `unknown` with the reason `NOT_ANALYSED`. In mode `off` each task is reported as a full run with the rule `MODE_OFF`.
 - The files are `build/reports/testimpact/report.json` and `report.txt` of the project. The report lists only what the selection returns: a class that is not selected is not listed, so `--explain` says "not selected" for a class that no change reaches and for a name that is not a test class of the task.
 - All paths are relative to the repository. Absolute paths in free text are shown as `<root>` (the settings directory), `<gradle-user-home>` and `<home>`.
 - The report is deterministic: two runs on the same tree give the same `report.json` except the `durationsMs` values.
@@ -197,7 +198,7 @@ durationsMs.selection | number | milliseconds
 durationsMs.total | number | milliseconds
 ```
 
-Reason codes of `forced.reason` and `tasks[].rule.reason`: `CHANGES_UNKNOWN`, `CHANGE_NOT_MAPPED`, `UNSUPPORTED_FRAMEWORK`, `UNKNOWN_ENGINE`, `GRAPH_UNKNOWN`, `ANALYSIS_ERROR`. Codes of `changes.reason`: `NOT_A_REPOSITORY`, `GIT_UNAVAILABLE`, `GIT_FAILED`, `NO_HEAD_COMMIT`, `DETACHED_HEAD`, `SHALLOW_CLONE`, `BASE_REF_NOT_FOUND`, `NO_MERGE_BASE`, `ANALYSIS_ERROR`.
+Reason codes of `forced.reason` and `tasks[].rule.reason`: `CHANGES_UNKNOWN`, `CHANGE_NOT_MAPPED`, `UNSUPPORTED_FRAMEWORK`, `UNKNOWN_ENGINE`, `GRAPH_UNKNOWN`, `ANALYSIS_ERROR`. `tasks[].rule.reason` can also be a rule of the decision after the selection: `WIDE_CHANGE`, `NOT_RECOGNISED`, `MODE_FULL`, `MODE_OFF`, `USER_TESTS`, `PLUGIN_ERROR`. Codes of `changes.reason`: `NOT_A_REPOSITORY`, `GIT_UNAVAILABLE`, `GIT_FAILED`, `NO_HEAD_COMMIT`, `DETACHED_HEAD`, `SHALLOW_CLONE`, `BASE_REF_NOT_FOUND`, `NO_MERGE_BASE`, `ANALYSIS_ERROR`, `NOT_ANALYSED`.
 
 New fields and new codes may appear without a new version: ignore fields you do not know and treat a code you do not know as a full run. Removing or renaming a field, or changing what it means, raises `schemaVersion`.
 

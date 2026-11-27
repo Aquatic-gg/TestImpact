@@ -23,12 +23,14 @@ class ReportSchemaTest {
             Selection.Unknown(":f:test", SelectionUnknownReason.UNKNOWN_ENGINE, "f.FakeEngine"),
         )
         val seeds = SeedSet(emptyList(), Forced(SelectionUnknownReason.CHANGE_NOT_MAPPED, "resource change: x.properties"))
-        return ReportBuilder.build(":c", ReportFixtures.changedCore(), seeds, selections, 3, mapOf(":c:test" to 4L), ReportFixtures.scrubber)
+        return ReportFixtures.report(selections, seeds = seeds, detectionMs = 3, selectionMs = mapOf(":c:test" to 4L))
     }
 
-    private fun unknown(): ImpactReport = ReportBuilder.build(
-        ":", ChangeDetection.Unknown(UnknownReason.NOT_A_REPOSITORY, "no repository"), SeedSet(emptyList()), emptyList(), 1,
-        emptyMap(), ReportFixtures.scrubber,
+    private fun unknown(): ImpactReport = ReportFixtures.report(
+        listOf(Selection.Unknown(":test", SelectionUnknownReason.CHANGES_UNKNOWN, "no repository")),
+        ChangeDetection.Unknown(UnknownReason.NOT_A_REPOSITORY, "no repository"),
+        detectionMs = 1,
+        project = ":",
     )
 
     private fun observe(value: Any?, path: String, into: Observed) {

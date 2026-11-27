@@ -71,6 +71,7 @@ internal abstract class SelectionInputsService : BuildService<BuildServiceParame
             resourceRoots = input.resourceRoots.map(::normal).distinct(),
             classOutputDirs = input.classOutputDirs.map(::normal).distinct(),
             buildLogicRoots = input.buildLogicRoots.map(::normal).distinct(),
+            settingsDir = input.settingsDir?.let(::normal),
         ),
     )
 

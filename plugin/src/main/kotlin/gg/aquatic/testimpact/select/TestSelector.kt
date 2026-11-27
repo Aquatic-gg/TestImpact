@@ -68,15 +68,6 @@ internal object TestSelector {
         capture: TestTaskCapture,
         seeds: SeedSet,
         scan: (List<Path>) -> ClassGraphResult = { ClassGraphScanner.scan(it) },
-    ): Selection = select(capture, seeds, scan, SeedRules.NONE, DEFAULT_SEED_SCAN)
-
-    /** As the input variant with [rules] and [seedScan]. */
-    fun select(
-        capture: TestTaskCapture,
-        seeds: SeedSet,
-        scan: (List<Path>) -> ClassGraphResult,
-        rules: SeedRules,
-        seedScan: (List<Path>) -> SeedResult,
     ): Selection {
         seeds.forced?.let { return Selection.Unknown(capture.taskPath, it.reason, it.detail) }
         val input = try {
@@ -88,7 +79,7 @@ internal object TestSelector {
                 "${e.javaClass.name}: ${e.message}",
             )
         }
-        return select(input, seeds, scan, rules, seedScan)
+        return select(input, seeds, scan)
     }
 
     private fun unsupported(input: TestTaskInput): Selection.Unknown? = when (input.framework) {

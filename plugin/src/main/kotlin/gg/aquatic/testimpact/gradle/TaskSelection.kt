@@ -16,8 +16,8 @@ import gg.aquatic.testimpact.gradle.internal.TestImpactMode
  * @property selected the selected classes sorted by name; for a [TaskOutcome.FULL] outcome it holds the partial
  * selection that was discarded (for `wide-change` and `not-recognised`) or nothing.
  * @property fullRule id of the reason the whole task runs, set exactly for [TaskOutcome.FULL]: `mode-full`,
- * `user-tests`, `wide-change`, `not-recognised`, `plugin-error`, or an unknown-selection reason in kebab-case such
- * as `changes-unknown`.
+ * `mode-off` (report only), `user-tests`, `wide-change`, `not-recognised`, `plugin-error`, or an unknown-selection
+ * reason in kebab-case such as `changes-unknown`.
  * @property fullDetail human-readable detail of [fullRule], at most [MAX_DETAIL] characters.
  * @property analysisMillis wall-clock time spent selecting.
  */
@@ -63,6 +63,7 @@ internal data class TaskSelection(
         const val MAX_DETAIL: Int = 500
 
         const val RULE_MODE_FULL: String = "mode-full"
+        const val RULE_MODE_OFF: String = "mode-off"
         const val RULE_USER_TESTS: String = "user-tests"
         const val RULE_WIDE_CHANGE: String = "wide-change"
         const val RULE_NOT_RECOGNISED: String = "not-recognised"

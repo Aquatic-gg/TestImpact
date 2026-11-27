@@ -2,33 +2,38 @@ package gg.aquatic.testimpact.report
 
 import gg.aquatic.testimpact.change.ChangeDetection
 import gg.aquatic.testimpact.change.ChangedFile
-import gg.aquatic.testimpact.select.SeedSet
+import gg.aquatic.testimpact.gradle.TaskOutcome
+import gg.aquatic.testimpact.gradle.internal.SelectionOutcome
 import gg.aquatic.testimpact.select.SelectedTest
 import gg.aquatic.testimpact.select.Selection
 
-/** Turns the outcome of detection and selection into the report model; free text is scrubbed of absolute paths. */
+/**
+ * Turns the outcomes of the Test tasks' selection runs into the report model; free text is scrubbed of absolute paths.
+ * A task's result is the decision of its run, the same one its selection task writes.
+ */
 internal object ReportBuilder {
 
+    const val NOT_ANALYSED = "NOT_ANALYSED"
+
     /**
-     * @param selectionMs milliseconds spent selecting, by task path; a task without an entry counts as 0.
+     * The changes are the ones of the first task (by path) that read them: every task of a project sees the same files,
+     * only whether a file maps to classes can differ, and that shows in the task's rule. [ImpactReport.forced] is set
+     * only when every task that read the changes is forced by the same reason.
      */
-    fun build(
-        project: String,
-        detection: ChangeDetection,
-        seeds: SeedSet,
-        selections: List<Selection>,
-        detectionMs: Long,
-        selectionMs: Map<String, Long>,
-        scrubber: PathScrubber,
-    ): ImpactReport {
-        val tasks = selections.sortedBy { it.taskPath }
-            .map { task(it, selectionMs[it.taskPath] ?: 0L, scrubber) }
+    fun build(project: String, outcomes: List<SelectionOutcome>, scrubber: PathScrubber): ImpactReport {
+        val sorted = outcomes.sortedBy { it.decision.taskPath }
+        val tasks = sorted.map { task(it, scrubber) }
         val known = tasks.filter { it.result == ImpactReport.Result.SELECTED }
+        val first = sorted.firstOrNull { it.detection != null }
+        val forced = first?.seeds?.forced?.takeIf { shown ->
+            sorted.all { outcome -> outcome.seeds.let { it == null || it.forced?.reason == shown.reason } }
+        }
+        val detectionMs = sorted.sumOf { it.detectionMillis }
         val selection = tasks.sumOf { it.durationMs }
         return ImpactReport(
             project = project,
-            changes = changes(detection, scrubber),
-            forced = seeds.forced?.let { ReportRules.rule(it.reason, scrubber.scrub(it.detail)) },
+            changes = changes(first?.detection, outcomes.isEmpty(), scrubber),
+            forced = forced?.let { ReportRules.rule(it.reason, scrubber.scrub(it.detail)) },
             tasks = tasks,
             totals = ImpactReport.Totals(
                 tasks = tasks.size,
@@ -40,7 +45,21 @@ internal object ReportBuilder {
         )
     }
 
-    private fun changes(detection: ChangeDetection, scrubber: PathScrubber): ImpactReport.Changes = when (detection) {
+    private fun changes(
+        detection: ChangeDetection?,
+        noTasks: Boolean,
+        scrubber: PathScrubber,
+    ): ImpactReport.Changes = when (detection) {
+        null -> ImpactReport.Changes(
+            state = ImpactReport.State.UNKNOWN,
+            baseRef = null,
+            baseCommit = null,
+            mergeBase = null,
+            reason = NOT_ANALYSED,
+            detail = if (noTasks) "the project has no Test task" else "every task was decided before reading the changes",
+            files = emptyList(),
+        )
+
         is ChangeDetection.Known -> ImpactReport.Changes(
             state = ImpactReport.State.KNOWN,
             baseRef = detection.baseRef,
@@ -69,26 +88,34 @@ internal object ReportBuilder {
         classes = changed.reachedClasses,
     )
 
-    private fun task(selection: Selection, durationMs: Long, scrubber: PathScrubber): ImpactReport.Task =
-        when (selection) {
-            is Selection.Known -> ImpactReport.Task(
-                path = selection.taskPath,
+    private fun task(outcome: SelectionOutcome, scrubber: PathScrubber): ImpactReport.Task {
+        val decision = outcome.decision
+        val selection = outcome.selection
+        val durationMs = (decision.analysisMillis - outcome.detectionMillis).coerceAtLeast(0)
+        if (decision.outcome != TaskOutcome.FULL && selection is Selection.Known) {
+            return ImpactReport.Task(
+                path = decision.taskPath,
                 result = ImpactReport.Result.SELECTED,
                 rule = null,
                 counts = ImpactReport.Counts(selection.tests.size, selection.recognisedCount, selection.candidateCount),
                 tests = selection.tests.map(::test),
                 durationMs = durationMs,
             )
-
-            is Selection.Unknown -> ImpactReport.Task(
-                path = selection.taskPath,
-                result = ImpactReport.Result.FULL,
-                rule = ReportRules.rule(selection.reason, scrubber.scrub(selection.detail)),
-                counts = null,
-                tests = emptyList(),
-                durationMs = durationMs,
-            )
         }
+        val rule = if (selection is Selection.Unknown) {
+            ReportRules.rule(selection.reason, scrubber.scrub(selection.detail))
+        } else {
+            ReportRules.decisionRule(decision.fullRule.orEmpty(), scrubber.scrub(decision.fullDetail.orEmpty()))
+        }
+        return ImpactReport.Task(
+            path = decision.taskPath,
+            result = ImpactReport.Result.FULL,
+            rule = rule,
+            counts = null,
+            tests = emptyList(),
+            durationMs = durationMs,
+        )
+    }
 
     private fun test(selected: SelectedTest): ImpactReport.Test {
         val path = selected.path

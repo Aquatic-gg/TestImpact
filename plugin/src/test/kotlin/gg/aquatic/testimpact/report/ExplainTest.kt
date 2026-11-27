@@ -1,6 +1,5 @@
 package gg.aquatic.testimpact.report
 
-import gg.aquatic.testimpact.select.SeedSet
 import gg.aquatic.testimpact.select.Selection
 import gg.aquatic.testimpact.select.SelectionUnknownReason
 import kotlin.test.Test
@@ -10,18 +9,13 @@ import kotlin.test.assertTrue
 
 class ExplainTest {
 
-    private val report = ReportBuilder.build(
-        ":c",
-        ReportFixtures.changedCore(),
-        SeedSet(emptyList()),
+    private val report = ReportFixtures.report(
         listOf(
             ReportFixtures.known(":c:test", listOf(ReportFixtures.reachedTest())),
             ReportFixtures.known(":c:integrationTest", emptyList()),
             Selection.Unknown(":c:slowTest", SelectionUnknownReason.GRAPH_UNKNOWN, "x.jar: unreadable"),
         ),
-        1,
-        emptyMap(),
-        ReportFixtures.scrubber,
+        detectionMs = 1,
     )
 
     @Test

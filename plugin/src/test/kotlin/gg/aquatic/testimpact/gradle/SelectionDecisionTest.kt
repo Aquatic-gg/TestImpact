@@ -177,8 +177,9 @@ class SelectionDecisionTest {
     }
 
     @Test
-    fun `short circuit covers mode full and user tests but not auto`() {
+    fun `short circuit covers mode full, mode off and user tests but not auto`() {
         assertEquals("mode-full", SelectionDecision.shortCircuit(":t", TestImpactMode.FULL, false, 0)?.fullRule)
+        assertEquals("mode-off", SelectionDecision.shortCircuit(":t", TestImpactMode.OFF, true, 0)?.fullRule)
         assertEquals("user-tests", SelectionDecision.shortCircuit(":t", TestImpactMode.AUTO, true, 0)?.fullRule)
         assertNull(SelectionDecision.shortCircuit(":t", TestImpactMode.AUTO, false, 0))
     }
