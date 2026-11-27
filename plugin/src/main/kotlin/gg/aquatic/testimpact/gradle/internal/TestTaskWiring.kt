@@ -1,5 +1,7 @@
 package gg.aquatic.testimpact.gradle.internal
 
+import gg.aquatic.testimpact.fallback.FallbackCapture
+import gg.aquatic.testimpact.fallback.RecordHistory
 import gg.aquatic.testimpact.gradle.ClassGraphService
 import gg.aquatic.testimpact.gradle.SelectionInputsService
 import gg.aquatic.testimpact.gradle.TestImpactExtension
@@ -88,6 +90,7 @@ internal object TestTaskWiring {
             val baseline = test.filter.includePatterns.toSet()
             test.onlyIf("TestImpact selected no test class", SelectionNotEmpty(selection, selectionInputs, baseline))
             test.doFirst(ApplySelection(selection, selectionInputs, baseline))
+            test.doLast(RecordHistory(selection, selectionInputs, baseline, FallbackCapture.of(project, test)))
         }
     }
 

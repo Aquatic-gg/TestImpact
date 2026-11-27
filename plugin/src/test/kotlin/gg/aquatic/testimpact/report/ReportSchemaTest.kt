@@ -2,8 +2,8 @@ package gg.aquatic.testimpact.report
 
 import gg.aquatic.testimpact.change.ChangeDetection
 import gg.aquatic.testimpact.change.UnknownReason
-import gg.aquatic.testimpact.select.Forced
-import gg.aquatic.testimpact.select.SeedSet
+import gg.aquatic.testimpact.fallback.FallbackRules
+import gg.aquatic.testimpact.fallback.FullRunRule
 import gg.aquatic.testimpact.select.Selection
 import gg.aquatic.testimpact.select.SelectionUnknownReason
 import groovy.json.JsonSlurper
@@ -22,12 +22,16 @@ class ReportSchemaTest {
             ReportFixtures.known(":c:test", listOf(ReportFixtures.reachedTest(), ReportFixtures.globalTest())),
             Selection.Unknown(":f:test", SelectionUnknownReason.UNKNOWN_ENGINE, "f.FakeEngine"),
         )
-        val seeds = SeedSet(emptyList(), Forced(SelectionUnknownReason.CHANGE_NOT_MAPPED, "resource change: x.properties"))
-        return ReportFixtures.report(selections, seeds = seeds, detectionMs = 3, selectionMs = mapOf(":c:test" to 4L))
+        return ReportFixtures.report(selections, detectionMs = 3, selectionMs = mapOf(":c:test" to 4L))
     }
 
+    private fun forced(): ImpactReport = ReportFixtures.report(
+        listOf(Selection.Unknown(":c:test", SelectionUnknownReason.ANALYSIS_ERROR, "x")),
+        changeRule = FallbackRules.Verdict(FullRunRule.RESOURCE_CHANGE, "resource change: x.properties", true),
+    )
+
     private fun unknown(): ImpactReport = ReportFixtures.report(
-        listOf(Selection.Unknown(":test", SelectionUnknownReason.CHANGES_UNKNOWN, "no repository")),
+        listOf(Selection.Unknown(":test", SelectionUnknownReason.ANALYSIS_ERROR, "no repository")),
         ChangeDetection.Unknown(UnknownReason.NOT_A_REPOSITORY, "no repository"),
         detectionMs = 1,
         project = ":",
@@ -72,7 +76,7 @@ class ReportSchemaTest {
     @Test
     fun `the readme field table equals the fields of the json`() {
         val observed = Observed()
-        for (report in listOf(populated(), unknown())) {
+        for (report in listOf(populated(), forced(), unknown())) {
             observe(JsonSlurper().parseText(ReportJson.render(report)), "", observed)
         }
         val documented = documented()

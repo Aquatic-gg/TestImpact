@@ -6,6 +6,8 @@ import gg.aquatic.testimpact.change.ChangedFile
 import gg.aquatic.testimpact.change.FileKind
 import gg.aquatic.testimpact.change.FileSnapshot
 import gg.aquatic.testimpact.change.UnknownReason
+import gg.aquatic.testimpact.fallback.FallbackRules
+import gg.aquatic.testimpact.fallback.FullRunRule
 import gg.aquatic.testimpact.graph.Edge
 import gg.aquatic.testimpact.graph.EdgeKind
 import gg.aquatic.testimpact.gradle.internal.SelectionDecision
@@ -102,11 +104,11 @@ class SelectionDecisionTest {
     }
 
     @Test
-    fun `an unknown selection runs everything with its reason in kebab case`() {
-        val result = decide(Selection.Unknown(":test", SelectionUnknownReason.CHANGES_UNKNOWN, "no git"))
+    fun `an unknown selection runs everything with the id of its rule`() {
+        val result = decide(Selection.Unknown(":test", SelectionUnknownReason.UNKNOWN_ENGINE, "no git"))
 
         assertEquals(TaskOutcome.FULL, result.outcome)
-        assertEquals("changes-unknown", result.fullRule)
+        assertEquals("unknown-engine", result.fullRule)
         assertEquals("no git", result.fullDetail)
     }
 
@@ -188,8 +190,28 @@ class SelectionDecisionTest {
     fun `a plugin error is a full run`() {
         val result = SelectionDecision.pluginError(":t", TestImpactMode.AUTO, "boom", 3)
 
-        assertEquals("plugin-error", result.fullRule)
-        assertEquals("changed ?, selected all test classes, full: plugin-error: boom", result.consoleLine())
+        assertEquals("analysis-error", result.fullRule)
+        assertEquals("changed ?, selected all test classes, full: analysis-error: the selection failed: boom", result.consoleLine())
+    }
+
+    @Test
+    fun `an unreadable class graph is no index`() {
+        val result = decide(Selection.Unknown(":test", SelectionUnknownReason.GRAPH_UNKNOWN, "x.jar: unreadable"))
+
+        assertEquals("no-index", result.fullRule)
+    }
+
+    @Test
+    fun `a fallback verdict keeps the changed files`() {
+        val verdict = FallbackRules.Verdict(FullRunRule.BUILD_LOGIC, "build.gradle.kts", true)
+
+        val result = SelectionDecision.fallback(":test", TestImpactMode.AUTO, verdict, known, 5)
+
+        assertEquals(TaskOutcome.FULL, result.outcome)
+        assertEquals("build-logic", result.fullRule)
+        assertEquals("build.gradle.kts", result.fullDetail)
+        assertEquals(listOf("src/A.kt", "src/B.kt"), result.changedFiles)
+        assertEquals(5, result.analysisMillis)
     }
 
     @Test

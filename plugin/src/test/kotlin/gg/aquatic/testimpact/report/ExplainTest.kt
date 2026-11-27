@@ -28,7 +28,7 @@ class ExplainTest {
             lines[1],
         )
         assertEquals(
-            ":c:slowTest: full run, so c.ServiceTest runs: a class file or archive could not be read (GRAPH_UNKNOWN): x.jar: unreadable",
+            ":c:slowTest: full run, so c.ServiceTest runs: a changed source file or a class file could not be read into the class graph (NO_INDEX): x.jar: unreadable",
             lines[2],
         )
         assertEquals(

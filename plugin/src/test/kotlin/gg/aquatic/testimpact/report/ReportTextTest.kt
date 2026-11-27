@@ -41,12 +41,12 @@ class ReportTextTest {
 
     @Test
     fun `unknown changes name the reason and detail`() {
-        val unknown = Selection.Unknown(":c:test", SelectionUnknownReason.CHANGES_UNKNOWN, "HEAD is detached")
+        val unknown = Selection.Unknown(":c:test", SelectionUnknownReason.ANALYSIS_ERROR, "HEAD is detached")
         val report = build(ChangeDetection.Unknown(UnknownReason.DETACHED_HEAD, "HEAD is detached"), listOf(unknown))
 
         assertEquals(
             "changes unknown: DETACHED_HEAD: HEAD is detached\n" +
-                ":c:test full run: changes could not be determined (CHANGES_UNKNOWN): HEAD is detached\n" +
+                ":c:test full run: the analysis failed (ANALYSIS_ERROR): HEAD is detached\n" +
                 "analysis 15 ms (detection 3 ms, selection 12 ms)\n",
             ReportText.render(report),
         )

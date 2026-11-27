@@ -1,5 +1,6 @@
 package gg.aquatic.testimpact.select
 
+import gg.aquatic.testimpact.gradle.TestImpactSelectTask
 import gg.aquatic.testimpact.select.gradle.TestTaskCapture
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -13,6 +14,13 @@ class SelectionProbePlugin : Plugin<Project> {
             task.seedNames.convention(project.providers.gradleProperty("impactSeeds"))
             task.outputDir.convention(project.layout.buildDirectory.dir("impact-probe"))
         }
+        if (project.providers.gradleProperty(FAIL_SELECTION).orNull == "true") {
+            project.tasks.withType(TestImpactSelectTask::class.java).configureEach { task ->
+                task.doFirst {
+                    task.selectionInputs.get().gitReadOf = { _, _ -> throw IllegalStateException("probe: the git read fails") }
+                }
+            }
+        }
         project.afterEvaluate {
             val userHome = project.gradle.gradleUserHomeDir
             val tests = project.tasks.withType(Test::class.java).toList()
@@ -23,5 +31,10 @@ class SelectionProbePlugin : Plugin<Project> {
                 }
             }
         }
+    }
+
+    private companion object {
+        /** With this Gradle property set to `true`, the selection tasks fail while reading git, to exercise the analysis error. */
+        const val FAIL_SELECTION = "testimpact.probe.failSelection"
     }
 }
