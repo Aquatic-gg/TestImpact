@@ -70,6 +70,6 @@ internal object ReportJson {
         "changedFile" to test.changedFile,
         "seedClass" to test.seedClass,
         "reachedClass" to test.reachedClass,
-        "path" to test.path.map { linkedMapOf("from" to it.from, "to" to it.to, "kind" to it.kind) },
+        "path" to test.path.map { linkedMapOf("from" to it.from, "to" to it.to, "kind" to it.kind, "seed" to it.seed) },
     )
 }

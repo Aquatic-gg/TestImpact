@@ -99,7 +99,9 @@ internal object ReportBuilder {
             changedFile = path.origin,
             seedClass = path.start,
             reachedClass = path.edges.lastOrNull()?.from ?: path.start,
-            path = path.edges.map { ImpactReport.Step(it.from, it.to, it.kind.name) },
+            path = path.edges.mapIndexed { index, edge ->
+                ImpactReport.Step(edge.from, edge.to, edge.kind.name, path.seedKinds[index]?.name)
+            },
         )
     }
 }

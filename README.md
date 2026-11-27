@@ -120,7 +120,7 @@ Known gaps:
 ./gradlew testImpactReport --explain com.example.FooTest
 ```
 
-- `--base <ref>` compares with that git ref instead of the default bases. The ref has at most 256 characters.
+- `--base <ref>` compares with that git ref instead of the `baseRef` of the `testImpact` block, or the default bases when that is not set. The ref has at most 256 characters. The report applies the same `alwaysRun` and `dynamicPackages` rules and the same resource links as the selection of a build; in `report.txt` a hop through such a link is named by its seed kind (for example `SERVICE`), in `report.json` by `path[].seed`.
 - `--explain <class>` prints, for each Test task of the project, the chain from the changed file to the class, the rule that forced a full run, or that the class is not selected. A nested class is explained by its top-level class. An invalid class name fails the task.
 - The files are `build/reports/testimpact/report.json` and `report.txt` of the project. The report lists only what the selection returns: a class that is not selected is not listed, so `--explain` says "not selected" for a class that no change reaches and for a name that is not a test class of the task.
 - All paths are relative to the repository. Absolute paths in free text are shown as `<root>` (the settings directory), `<gradle-user-home>` and `<home>`.
@@ -183,6 +183,7 @@ tasks[].tests[].path | array | edges from the seed class outward
 tasks[].tests[].path[].from | string | the dependent class
 tasks[].tests[].path[].to | string | the class it depends on
 tasks[].tests[].path[].kind | string | SUPERTYPE, REFERENCE, INLINE, CONSTANT or TYPEALIAS
+tasks[].tests[].path[].seed | string? | for a hop through a link bytecode does not show: SERVICE, CLASS_NAME, PACKAGE_NAME, DESCRIPTOR, RESOURCE_NAME, RESOURCE_LOADER or DYNAMIC
 tasks[].durationsMs | object | time spent on the task
 tasks[].durationsMs.selection | number | milliseconds
 totals | object | sums over the tasks

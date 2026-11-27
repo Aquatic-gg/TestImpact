@@ -95,11 +95,12 @@ internal data class ImpactReport(
         val path: List<Step>,
     )
 
-    /** @property kind name of the edge kind. */
+    /** @property kind name of the edge kind. @property seed name of the seed kind for a hop through a name, service or resource link, else null. */
     data class Step(
         val from: String,
         val to: String,
         val kind: String,
+        val seed: String? = null,
     )
 
     data class Totals(

@@ -4,6 +4,7 @@ import gg.aquatic.testimpact.change.ChangeDetection
 import gg.aquatic.testimpact.change.UnknownReason
 import gg.aquatic.testimpact.graph.Edge
 import gg.aquatic.testimpact.graph.EdgeKind
+import gg.aquatic.testimpact.seed.SeedKind
 import gg.aquatic.testimpact.select.Forced
 import gg.aquatic.testimpact.select.ReachPath
 import gg.aquatic.testimpact.select.SeedSet
@@ -149,5 +150,17 @@ class ReportBuilderTest {
         val step = build(listOf(ReportFixtures.known(":c:test", listOf(selected)))).tasks.single().tests.single().path.single()
 
         assertEquals("INLINE", step.kind)
+        assertNull(step.seed)
+    }
+
+    @Test
+    fun `a hop through a seed link keeps its seed kind and the other edges have none`() {
+        val edges = listOf(Edge("b.Svc", "a.Impl", EdgeKind.REFERENCE), Edge("c.T", "b.Svc", EdgeKind.REFERENCE))
+        val selected = SelectedTest("c.T", ReachPath("o", "a.Impl", edges, mapOf(0 to SeedKind.SERVICE)), SelectReason.REACHED, true)
+
+        val steps = build(listOf(ReportFixtures.known(":c:test", listOf(selected)))).tasks.single().tests.single().path
+
+        assertEquals(listOf("SERVICE", null), steps.map { it.seed })
+        assertTrue("\"seed\":\"SERVICE\"" in ReportJson.render(build(listOf(ReportFixtures.known(":c:test", listOf(selected))))).replace(" ", ""))
     }
 }

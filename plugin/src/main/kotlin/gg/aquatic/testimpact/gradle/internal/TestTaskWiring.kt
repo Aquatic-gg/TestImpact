@@ -94,7 +94,7 @@ internal object TestTaskWiring {
                     )
                 },
             )
-            task.resourceRoots.from(Callable { roots(sourceSets, ::resources) })
+            task.resourceRoots.from(resourceRoots(project))
             task.dynamicPackages.set(extension.dynamicPackages)
             task.alwaysRun.set(extension.alwaysRun)
             task.wideChangePercent.set(extension.wideChangePercent)
@@ -121,6 +121,10 @@ internal object TestTaskWiring {
             test.doFirst(ApplySelection(selection, selectionInputs, baseline))
         }
     }
+
+    /** The resource directories scanned for links, shared by the selection tasks and the report. */
+    internal fun resourceRoots(project: Project): Callable<List<File>> =
+        Callable { roots(project.extensions.findByType(SourceSetContainer::class.java), ::resources) }
 
     private fun roots(sourceSets: SourceSetContainer?, of: (SourceSet) -> Set<File>): List<File> =
         sourceSets?.flatMap(of).orEmpty()

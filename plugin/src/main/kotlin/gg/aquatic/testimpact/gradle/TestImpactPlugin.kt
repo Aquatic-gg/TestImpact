@@ -22,6 +22,6 @@ public class TestImpactPlugin : Plugin<Project> {
         }
         val selectionInputs = sharedServices.registerIfAbsent(ServiceNames.selectionInputs, SelectionInputsService::class.java) {}
         target.afterEvaluate { TestTaskWiring.wire(target, extension, classGraph, selectionInputs) }
-        ReportTasks.register(target, classGraph)
+        ReportTasks.register(target, extension, classGraph, selectionInputs)
     }
 }

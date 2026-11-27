@@ -3,11 +3,13 @@ package gg.aquatic.testimpact.report.gradle
 import gg.aquatic.testimpact.change.ChangeDetector
 import gg.aquatic.testimpact.change.gradle.DetectionCapture
 import gg.aquatic.testimpact.gradle.ClassGraphService
+import gg.aquatic.testimpact.gradle.SelectionInputsService
 import gg.aquatic.testimpact.report.Explain
 import gg.aquatic.testimpact.report.PathScrubber
 import gg.aquatic.testimpact.report.ReportBuilder
 import gg.aquatic.testimpact.report.ReportJson
 import gg.aquatic.testimpact.report.ReportText
+import gg.aquatic.testimpact.seed.SeedRules
 import gg.aquatic.testimpact.select.Seeds
 import gg.aquatic.testimpact.select.Selection
 import gg.aquatic.testimpact.select.TestSelector
@@ -18,7 +20,7 @@ import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
-import org.gradle.api.services.ServiceReference
+import org.gradle.api.provider.SetProperty
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.Internal
@@ -58,6 +60,19 @@ internal abstract class TestImpactReportTask : DefaultTask() {
     @get:Internal
     abstract val classGraph: Property<ClassGraphService>
 
+    @get:Internal
+    abstract val selectionInputs: Property<SelectionInputsService>
+
+    /** Resource directories of the project's source sets, scanned for resource links like the selection does. */
+    @get:Internal
+    abstract val resourceRoots: ConfigurableFileCollection
+
+    @get:Input
+    abstract val dynamicPackages: SetProperty<String>
+
+    @get:Input
+    abstract val alwaysRun: SetProperty<String>
+
     @get:Input
     @get:Optional
     @get:Option(option = "base", description = "Git ref to compare the working tree with, such as main.")
@@ -74,7 +89,8 @@ internal abstract class TestImpactReportTask : DefaultTask() {
     @TaskAction
     fun report() {
         val explained = explain.orNull?.let { name -> invalid { Explain.validate(name) } }
-        val base = baseRef.orNull
+        val base = baseRef.orNull?.takeIf { it.isNotEmpty() }
+        val rules = invalid { SeedRules.of(dynamicPackages.get(), alwaysRun.get()) }
         if (base != null && base.length > MAX_BASE_LENGTH) {
             throw InvalidUserDataException("--base expects a git ref of at most $MAX_BASE_LENGTH characters")
         }
@@ -94,9 +110,13 @@ internal abstract class TestImpactReportTask : DefaultTask() {
         val selectionMs = HashMap<String, Long>()
         val selections = ArrayList<Selection>(tasks.size)
         val graphs = classGraph.get()
+        val service = selectionInputs.get()
+        val resources = resourceRoots.files.map(File::toPath)
         for (task in tasks) {
             val start = System.nanoTime()
-            selections.add(TestSelector.select(task, seeds) { roots -> graphs.graph(roots) })
+            selections.add(
+                TestSelector.select(task, seeds, graphs::graph, rules) { roots -> service.seeds(roots, resources) },
+            )
             selectionMs[task.taskPath] = millisSince(start)
         }
 
