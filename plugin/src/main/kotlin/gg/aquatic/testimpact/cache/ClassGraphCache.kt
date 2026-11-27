@@ -31,6 +31,7 @@ internal class ClassGraphCache(
     private val stamp: CacheStamp = CacheStamp.current,
     private val parse: (ByteArray) -> ClassFacts = ClassFileReader::read,
     private val log: (String) -> Unit = {},
+    private val maxFileBytes: Long = CacheFiles.MAX_FILE_BYTES,
 ) {
     private val snapshots = ConcurrentHashMap<String, AtomicReference<RootEntries>>()
     private val housekept = AtomicBoolean(false)
@@ -59,6 +60,10 @@ internal class ClassGraphCache(
             return
         }
         val bytes = CacheCodec.encode(stamp, key, result.entries.entries)
+        if (bytes.size > maxFileBytes) {
+            log("class cache for $key not written: ${bytes.size} bytes is larger than $maxFileBytes; an older file is left as it is")
+            return
+        }
         CacheFiles.writeAtomically(dir, file.fileName.toString(), bytes, log)
         snapshots.getOrPut(key) { AtomicReference(result.entries) }.set(result.entries)
     }

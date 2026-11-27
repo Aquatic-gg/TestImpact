@@ -14,6 +14,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotSame
 import kotlin.test.assertSame
@@ -98,10 +99,16 @@ class ClassGraphServiceTest {
 
     @Test
     fun `applying the plugin does not create the service`() {
-        val before = ClassGraphService.created.get()
+        val dir = temp.resolve("lazy-cache").toFile()
+        var touched = false
         val project = ProjectBuilder.builder().withProjectDir(temp.resolve("lazy").also(Files::createDirectories).toFile()).build()
+        project.gradle.sharedServices.registerIfAbsent("testImpactClassGraph", ClassGraphService::class.java) { spec ->
+            spec.parameters.cacheDirectory.set(project.layout.dir(project.provider { touched = true; dir }))
+        }
         project.plugins.apply(TestImpactPlugin::class.java)
-        assertEquals(before, ClassGraphService.created.get())
+        assertFalse(touched)
+        project.gradle.sharedServices.registrations.getByName("testImpactClassGraph").service.get()
+        assertTrue(touched)
     }
 
     @Test

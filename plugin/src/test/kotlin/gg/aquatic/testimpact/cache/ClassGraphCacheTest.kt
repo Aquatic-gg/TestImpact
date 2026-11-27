@@ -67,6 +67,16 @@ internal class ClassGraphCacheTest {
     }
 
     @Test
+    fun `a file larger than the cap is not written`() {
+        prepare()
+        val expected = ClassGraphScanner.scan(listOf(corpus))
+        val result = ClassGraphCache(cacheDir, stamp, CountingParser(), logs::add, maxFileBytes = 16).scan(listOf(corpus))
+        CacheCorpus.assertSameGraph(expected, result)
+        assertTrue(!cacheDir.exists() || cacheDir.listDirectoryEntries("*.bin").isEmpty())
+        assertTrue(logs.any { "not written" in it && "larger than 16" in it }, logs.toString())
+    }
+
+    @Test
     fun `a new class file is the only one parsed`() {
         prepare()
         cache(CountingParser()).scan(listOf(corpus))
