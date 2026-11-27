@@ -32,6 +32,9 @@ class FallbackHistoryFunctionalTest {
         FallbackFixture.assertFull(projectDir, build("test"), "first-run", both)
         assertTrue(Files.exists(marker()))
 
+        val unchanged = build("test")
+        assertTrue(unchanged.output.contains("Reusing configuration cache"), unchanged.output)
+
         changeCalc()
         val partial = build("test")
 
