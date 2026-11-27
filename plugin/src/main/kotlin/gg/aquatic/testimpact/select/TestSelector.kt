@@ -4,6 +4,7 @@ import gg.aquatic.testimpact.graph.ClassGraphResult
 import gg.aquatic.testimpact.graph.ClassGraphScanner
 import gg.aquatic.testimpact.graph.ClassProblem
 import gg.aquatic.testimpact.graph.DependencyGraph
+import gg.aquatic.testimpact.select.gradle.TestTaskCapture
 import gg.aquatic.testimpact.select.internal.EngineCatalog
 import gg.aquatic.testimpact.select.internal.ReachResult
 import gg.aquatic.testimpact.select.internal.ReverseReach
@@ -32,6 +33,28 @@ internal object TestSelector {
         } catch (e: Exception) {
             unknown(input, SelectionUnknownReason.ANALYSIS_ERROR, "${e.javaClass.name}: ${e.message}")
         }
+    }
+
+    /**
+     * Selects for a captured task. Reading the classpath happens inside the same guard as the analysis, so a service
+     * file or archive that cannot be read becomes [SelectionUnknownReason.ANALYSIS_ERROR] instead of failing the build.
+     */
+    fun select(
+        capture: TestTaskCapture,
+        seeds: SeedSet,
+        scan: (List<Path>) -> ClassGraphResult = { ClassGraphScanner.scan(it) },
+    ): Selection {
+        seeds.forced?.let { return Selection.Unknown(capture.taskPath, it.reason, it.detail) }
+        val input = try {
+            capture.resolve()
+        } catch (e: Exception) {
+            return Selection.Unknown(
+                capture.taskPath,
+                SelectionUnknownReason.ANALYSIS_ERROR,
+                "${e.javaClass.name}: ${e.message}",
+            )
+        }
+        return select(input, seeds, scan)
     }
 
     private fun unsupported(input: TestTaskInput): Selection.Unknown? = when (input.framework) {

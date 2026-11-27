@@ -1,6 +1,12 @@
 package gg.aquatic.testimpact.select.gradle
 
+import gg.aquatic.testimpact.select.Forced
+import gg.aquatic.testimpact.select.Seed
+import gg.aquatic.testimpact.select.SeedSet
+import gg.aquatic.testimpact.select.Selection
+import gg.aquatic.testimpact.select.SelectionUnknownReason
 import gg.aquatic.testimpact.select.TestFrameworkKind
+import gg.aquatic.testimpact.select.TestSelector
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.tasks.testing.Test
@@ -11,6 +17,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class TestTaskCaptureTest {
@@ -91,5 +98,36 @@ class TestTaskCaptureTest {
         assertTrue(main.toAbsolutePath().normalize() in input.otherRoots)
         assertEquals(listOf("x.FakeEngine"), input.engines)
         assertEquals(setOf("x.Listener"), input.globalClasses)
+    }
+
+    @kotlin.test.Test
+    fun `an unreadable classpath archive makes the capture overload unknown`() {
+        val project = project()
+        val test = testTask(project)
+        val tests = Files.createDirectories(dir.resolve("classes/test"))
+        val corrupt = dir.resolve("corrupt.jar")
+        Files.writeString(corrupt, "not a zip")
+        test.testClassesDirs = project.files(tests.toFile())
+        test.classpath = project.files(tests.toFile(), corrupt.toFile())
+        test.useJUnitPlatform()
+        val seeds = SeedSet(listOf(Seed("change.kt", listOf("m.Core"), emptyList())))
+
+        val result = TestSelector.select(capture(project, test), seeds)
+
+        val unknown = assertIs<Selection.Unknown>(result)
+        assertEquals(SelectionUnknownReason.ANALYSIS_ERROR, unknown.reason)
+        assertEquals(":test", unknown.taskPath)
+    }
+
+    @kotlin.test.Test
+    fun `forced seeds are unknown without reading the classpath`() {
+        val project = project()
+        val test = testTask(project)
+        test.classpath = project.files(dir.resolve("corrupt.jar").toFile())
+        val forced = SeedSet(emptyList(), Forced(SelectionUnknownReason.CHANGES_UNKNOWN, "no git"))
+
+        val unknown = assertIs<Selection.Unknown>(TestSelector.select(capture(project, test), forced))
+
+        assertEquals(SelectionUnknownReason.CHANGES_UNKNOWN, unknown.reason)
     }
 }

@@ -39,6 +39,10 @@ testing {
 
 gradlePlugin.testSourceSets.add(sourceSets["functionalTest"])
 
+kotlin.target.compilations.named("functionalTest") {
+    associateWith(kotlin.target.compilations.getByName("main"))
+}
+
 tasks.named("check") {
     dependsOn(testing.suites.named("functionalTest"))
 }
