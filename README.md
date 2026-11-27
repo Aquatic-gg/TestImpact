@@ -70,6 +70,33 @@ TestImpact :app:integrationTest: changed ?, selected all test classes, full: cha
 
 The value is trimmed and not case-sensitive. A value that is none of these fails the build with a message naming where it came from.
 
+### Red runs
+
+A selected run that is green proves little when an earlier run was red. The plugin remembers the failures of every `Test` task and follows them up before it trusts a green result.
+
+- **Memory.** When a run of a `Test` task fails, the failing classes are written to `build/testimpact/escalation/<task>.state`, and a full run is owed. A crashed test JVM counts the same, even when no class can be named, and so does a failure whose class name cannot be stored (the state is then marked `unknown-failure=true`). Only a run that reaches its end updates the memory: a build that dies mid-run leaves `last-result=running` and keeps what was owed before.
+- **Quick phase.** In mode `auto`, with a full run owed, `test` first runs its companion task `testImpactQuick<Name>` (`testImpactQuickTest` for `test`). It runs the red classes and the classes the selection picked, and nothing else.
+- **Stop on red.** When the quick phase is still red, `test` fails before the full run, naming the classes, the report of the quick task and how to skip it. This holds under `--continue` and `--parallel`.
+- **Full run.** When the quick phase is green, `test` runs every class. Only a green full run clears the memory. While a full run is owed, `test` is not up to date and is not taken from or stored in the build cache, and the quick task is never up to date or cached. The quick task runs with the fork settings, classpath, test framework options and filters of `test`; its JVM argument providers are not copied, so a provider the build adds to every `Test` task (a coverage agent, say) is added once, by that rule.
+- **The quick task by name.** `gradle testImpactQuickTest` (or an abbreviation of it) without `test` fails on a red class; as the first phase of `test` it only reports, and `test` stops the build.
+- **Launchers and `--tests`.** A run that names tests (`--tests`, an IDE or Tooling API launch of single tests) runs exactly those and skips the quick phase. A run that names no task skips it too, because a Tooling API test launch and a run of the build's `defaultTasks` look the same at configuration time; the full run still happens. A green run of that kind leaves the memory as it was; a red one adds its failed classes to it and keeps the full run owed. Such a run may be up to date or taken from the build cache like any other, and then it writes nothing.
+- **`mode`.** `full` skips the quick phase and runs every test. `off` adds no quick task and no state file.
+
+The state file is plain text, one `key=value` line each, UTF-8, with the header `testimpact-escalation 1`:
+
+```
+testimpact-escalation 1
+full-run-required=true
+unknown-failure=false
+last-phase=quick
+last-result=green
+red=app.CalcTest
+```
+
+`last-phase` is `quick`, `partial` (a run narrowed by `--tests` or by the selection) or `full`; `last-result` is `running`, `green` or `red`. Only `full-run-required=false` with `last-phase=full` and `last-result=green` is a verdict, so a build stopped during a phase leaves `last-result=running`, which is no verdict. The file is written only when a `Test` task actually runs: a build in which the task is up to date, taken from the build cache or skipped leaves it as it was. More than 10,000 red classes, names that are not Java names or a file above 1 MiB are not written as such; the classes left out are recorded as `unknown-failure=true`. A file that is damaged, too large, of another version or with a class name that is not a Java name counts as a full run owed, with one warning. `clean` deletes the file and so the memory.
+
+`testImpactQuick<Name>` is a `Test` task that copies the settings of the task it follows through public API: JVM arguments, system properties, environment, heap size, classpath and test classes, test framework and its options, includes, excludes, filters, forks and the Java launcher, and the task's `dependsOn`. It does not copy `doFirst` or `doLast` actions, listeners, services or properties set through build-specific code, so a test that needs one of those can fail in the quick phase only; the verdict always comes from the task itself, and `-x testImpactQuick<Name>` skips the quick phase. A `useJUnitPlatform()` that the build script applies to the task after the quick task was created is not seen by the quick task, which is created when the task graph is made.
+
 ## Configuration
 
 ```kotlin
@@ -205,7 +232,7 @@ New fields and new codes may appear without a new version: ignore fields you do 
 
 ## Status
 
-Early development. Every Test task of a project that applies the plugin runs only the selected classes; `mode = "off"` restores the stock behaviour. The `testImpactReport` task shows what would be selected.
+Early development. Every Test task of a project that applies the plugin runs only the selected classes; `mode = "off"` restores the stock behaviour. The `testImpactReport` task shows what would be selected. A red run is followed by a quick run of the failed classes and then a full run; see [Red runs](#red-runs).
 
 ## Requirements
 

@@ -1,5 +1,6 @@
 package gg.aquatic.testimpact.gradle.internal
 
+import gg.aquatic.testimpact.escalation.EscalationWiring
 import gg.aquatic.testimpact.gradle.ClassGraphService
 import gg.aquatic.testimpact.gradle.SelectionInputsService
 import gg.aquatic.testimpact.gradle.TestImpactExtension
@@ -74,6 +75,7 @@ internal object TestTaskWiring {
             task.resultFile.set(project.layout.buildDirectory.file("testimpact/selection/$name.txt"))
         }
         val selection = select.flatMap { it.selectionFile }
+        val escalation = EscalationWiring.wire(project, testTask, select, selection, mode, userTests)
         testTask.configure { test ->
             test.usesService(selectionInputs)
             test.dependsOn(select)
@@ -86,8 +88,11 @@ internal object TestTaskWiring {
             val path = test.path
             test.inputs.property("testImpactSelectionRan", selectionInputs.map { it.hasSelected(path) })
             val baseline = test.filter.includePatterns.toSet()
-            test.onlyIf("TestImpact selected no test class", SelectionNotEmpty(selection, selectionInputs, baseline))
-            test.doFirst(ApplySelection(selection, selectionInputs, baseline))
+            val notEmpty = SelectionNotEmpty(selection, selectionInputs, baseline)
+            val apply = ApplySelection(selection, selectionInputs, baseline)
+            test.onlyIf("TestImpact selected no test class", escalation?.spec(notEmpty, baseline) ?: notEmpty)
+            test.doFirst(escalation?.action(apply, baseline) ?: apply)
+            escalation?.configure(test, baseline)
         }
     }
 

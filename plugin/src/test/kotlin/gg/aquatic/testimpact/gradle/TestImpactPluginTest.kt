@@ -75,6 +75,37 @@ class TestImpactPluginTest {
     }
 
     @Test
+    fun `every Test task gets a quick task that it waits for`() {
+        val project = evaluated(null)
+        val test = project.tasks.getByName("test") as org.gradle.api.tasks.testing.Test
+
+        val quick = project.tasks.getByName("testImpactQuickTest")
+
+        assertTrue(quick is org.gradle.api.tasks.testing.Test)
+        assertTrue(test.taskDependencies.getDependencies(test).contains(quick))
+        assertTrue(quick.taskDependencies.getDependencies(quick).map { it.name }.contains("testImpactSelectTest"))
+    }
+
+    @Test
+    fun `mode off adds no quick task`() {
+        assertTrue(evaluated("off").tasks.names.none { it.startsWith("testImpactQuick") })
+    }
+
+    @Test
+    fun `a task named like the quick task leaves the Test task with the selection alone`() {
+        val project = ProjectBuilder.builder().build()
+        project.pluginManager.apply("java")
+        project.pluginManager.apply("gg.aquatic.testimpact")
+        val clash = project.tasks.register("testImpactQuickTest")
+        (project as ProjectInternal).evaluate()
+        val test = project.tasks.getByName("test") as org.gradle.api.tasks.testing.Test
+
+        assertTrue("testImpactSelectTest" in test.taskDependencies.getDependencies(test).map { it.name })
+        assertTrue(clash.get() !in test.taskDependencies.getDependencies(test))
+        assertTrue(clash.get() !is org.gradle.api.tasks.testing.Test)
+    }
+
+    @Test
     fun `mode full still wires the task so the build reports the line`() {
         assertTrue("testImpactSelectTest" in evaluated("FULL").tasks.names)
     }

@@ -1,5 +1,6 @@
 package gg.aquatic.testimpact.report.gradle
 
+import gg.aquatic.testimpact.escalation.EscalationWiring
 import gg.aquatic.testimpact.gradle.ClassGraphService
 import gg.aquatic.testimpact.gradle.SelectionInputsService
 import gg.aquatic.testimpact.gradle.TestImpactExtension
@@ -44,6 +45,7 @@ internal object ReportTasks {
                 task.mode.set(TestTaskWiring.mode(project, extension).name)
                 task.userTests.set(TestTaskWiring.userTests(project))
                 for (test in project.tasks.withType(Test::class.java).toList()) {
+                    if (EscalationWiring.isQuick(test)) continue
                     task.runs.add(SelectionRun.of(project, test))
                     task.runtimeFiles.from(test.testClassesDirs, test.classpath)
                 }

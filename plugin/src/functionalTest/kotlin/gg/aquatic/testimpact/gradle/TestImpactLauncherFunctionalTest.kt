@@ -4,10 +4,8 @@ import org.gradle.tooling.GradleConnector
 import org.gradle.util.GradleVersion
 import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayOutputStream
-import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.Properties
 import kotlin.test.Test
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -43,24 +41,5 @@ class TestImpactLauncherFunctionalTest {
         assertFalse(Files.exists(projectDir.resolve("build/test-results/test/TEST-app.OtherTest.xml")))
     }
 
-    private fun initScript(): Path {
-        val metadata = Properties()
-        val resource = checkNotNull(javaClass.classLoader.getResourceAsStream("plugin-under-test-metadata.properties")) {
-            "plugin-under-test-metadata.properties is missing"
-        }
-        resource.use(metadata::load)
-        val classpath = metadata.getProperty("implementation-classpath").split(File.pathSeparator)
-            .joinToString(", ") { "'${it.replace('\\', '/')}'" }
-        val script = scriptDir.resolve("testimpact.init.gradle")
-        Files.writeString(
-            script,
-            """
-            initscript {
-                dependencies { classpath files($classpath) }
-            }
-            allprojects { apply plugin: gg.aquatic.testimpact.gradle.TestImpactPlugin }
-            """.trimIndent() + "\n",
-        )
-        return script
-    }
+    private fun initScript(): Path = ImpactFixture.initScript(scriptDir)
 }

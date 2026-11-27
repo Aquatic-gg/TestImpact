@@ -1,11 +1,13 @@
 package gg.aquatic.testimpact.gradle
 
+import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Properties
 
 /** Writes small Gradle builds with real JUnit tests for the selection scenarios. */
 internal object ImpactFixture {
-    private const val JUPITER = "5.14.4"
+    const val JUPITER = "5.14.4"
     private const val IGNORED = "build/\n.gradle/\n.kotlin/\n"
 
     private val kotlinVersion: String = checkNotNull(System.getProperty("testimpact.kotlinVersion")) {
@@ -154,6 +156,28 @@ internal object ImpactFixture {
 
         $body
         """.trimIndent() + "\n"
+
+    /** An init script applying the plugin under test to every project, for builds started through the Tooling API. */
+    fun initScript(scriptDir: Path): Path {
+        val metadata = Properties()
+        val resource = checkNotNull(ImpactFixture::class.java.classLoader.getResourceAsStream("plugin-under-test-metadata.properties")) {
+            "plugin-under-test-metadata.properties is missing"
+        }
+        resource.use(metadata::load)
+        val classpath = metadata.getProperty("implementation-classpath").split(File.pathSeparator)
+            .joinToString(", ") { "'${it.replace('\\', '/')}'" }
+        val script = scriptDir.resolve("testimpact.init.gradle")
+        Files.writeString(
+            script,
+            """
+            initscript {
+                dependencies { classpath files($classpath) }
+            }
+            allprojects { apply plugin: gg.aquatic.testimpact.gradle.TestImpactPlugin }
+            """.trimIndent() + "\n",
+        )
+        return script
+    }
 
     fun file(root: Path, relative: String, content: String) {
         val target = root.resolve(relative)
