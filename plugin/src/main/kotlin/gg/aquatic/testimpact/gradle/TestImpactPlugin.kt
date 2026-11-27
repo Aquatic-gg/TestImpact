@@ -9,7 +9,10 @@ import org.gradle.api.Project
  */
 public class TestImpactPlugin : Plugin<Project> {
     override fun apply(target: Project) {
-        target.extensions.create("testImpact", TestImpactExtension::class.java)
+        val extension = target.extensions.create("testImpact", TestImpactExtension::class.java)
+        extension.mode.convention("auto")
+        extension.wideChangePercent.convention(60)
+        extension.wideChangeMinClasses.convention(12)
         target.gradle.sharedServices.registerIfAbsent("testImpactClassGraph", ClassGraphService::class.java) { spec ->
             spec.parameters.cacheDirectory.set(target.layout.settingsDirectory.dir("build/testimpact/class-cache"))
         }
