@@ -63,7 +63,7 @@ class GradleCompatibilityFunctionalTest {
     fun `isolated projects with several modules on the newest Gradle`() {
         ImpactFixture.multiModule(projectDir)
         GitFixture.init(projectDir)
-        FallbackFixture.primeHistory(projectDir)
+        listOf("a", "b", "c", "k", "e").forEach { FallbackFixture.primeHistory(projectDir, it) }
         ImpactFixture.file(projectDir, "a/src/main/java/a/Core.java", ImpactFixture.core(2))
         val newest = CompatMatrix.versionsFor(Runtime.version().feature()).last().version
         val isolated = "-Dorg.gradle.unsafe.isolated-projects=true"
