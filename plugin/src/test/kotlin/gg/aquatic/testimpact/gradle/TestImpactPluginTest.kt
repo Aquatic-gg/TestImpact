@@ -69,7 +69,7 @@ class TestImpactPluginTest {
         val test = project.tasks.getByName("test") as org.gradle.api.tasks.testing.Test
         val stock = control.tasks.getByName("test") as org.gradle.api.tasks.testing.Test
 
-        assertEquals(control.tasks.names.toSet(), project.tasks.names.toSet())
+        assertEquals(control.tasks.names.toSet() + "testImpactReport", project.tasks.names.toSet())
         assertEquals(stock.taskDependencies.getDependencies(stock).map { it.name }, test.taskDependencies.getDependencies(test).map { it.name })
         assertEquals(stock.actions.size, test.actions.size)
     }

@@ -55,7 +55,7 @@ internal abstract class TestImpactReportTask : DefaultTask() {
     @get:PathSensitive(PathSensitivity.NONE)
     abstract val runtimeFiles: ConfigurableFileCollection
 
-    @get:ServiceReference("testImpactClassGraph")
+    @get:Internal
     abstract val classGraph: Property<ClassGraphService>
 
     @get:Input
