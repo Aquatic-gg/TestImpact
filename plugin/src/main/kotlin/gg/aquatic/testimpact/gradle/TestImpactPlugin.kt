@@ -2,12 +2,13 @@ package gg.aquatic.testimpact.gradle
 
 import gg.aquatic.testimpact.gradle.internal.ServiceNames
 import gg.aquatic.testimpact.gradle.internal.TestTaskWiring
+import gg.aquatic.testimpact.report.gradle.ReportTasks
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 
 /**
- * Entry point of the plugin. It registers the `testImpact` extension and the shared services, then connects every
- * Test task to its selection once the project is evaluated.
+ * Entry point of the plugin. It registers the `testImpact` extension, the shared services and the `testImpactReport`
+ * task, then connects every Test task to its selection once the project is evaluated.
  */
 public class TestImpactPlugin : Plugin<Project> {
     override fun apply(target: Project) {
@@ -21,5 +22,6 @@ public class TestImpactPlugin : Plugin<Project> {
         }
         val selectionInputs = sharedServices.registerIfAbsent(ServiceNames.selectionInputs, SelectionInputsService::class.java) {}
         target.afterEvaluate { TestTaskWiring.wire(target, extension, classGraph, selectionInputs) }
+        ReportTasks.register(target)
     }
 }

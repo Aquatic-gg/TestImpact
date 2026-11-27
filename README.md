@@ -110,9 +110,99 @@ Known gaps:
 - Project outputs that a build step transforms into the Gradle user home are not scanned.
 - Frameworks that find tests by scanning the classpath, such as Cucumber or custom runners, are not understood.
 
+## Report
+
+`testImpactReport` shows what would be selected for the current changes, and why. It runs the change detection and the selection for every Test task of its project at execution time and writes the result; it runs no test.
+
+```
+./gradlew testImpactReport
+./gradlew testImpactReport --base main
+./gradlew testImpactReport --explain com.example.FooTest
+```
+
+- `--base <ref>` compares with that git ref instead of the default bases. The ref has at most 256 characters.
+- `--explain <class>` prints, for each Test task of the project, the chain from the changed file to the class, the rule that forced a full run, or that the class is not selected. A nested class is explained by its top-level class. An invalid class name fails the task.
+- The files are `build/reports/testimpact/report.json` and `report.txt` of the project. The report lists only what the selection returns: a class that is not selected is not listed, so `--explain` says "not selected" for a class that no change reaches and for a name that is not a test class of the task.
+- All paths are relative to the repository. Absolute paths in free text are shown as `<root>` (the settings directory), `<gradle-user-home>` and `<home>`.
+- The report is deterministic: two runs on the same tree give the same `report.json` except the `durationsMs` values.
+
+Sample `report.txt`:
+
+```
+base main 0123456 merge-base 0123456: 1 changed files
+  a/src/main/java/a/Core.java
+:c:test selected 1 of 2 test classes (2 recognised) in 12 ms
+  c.ServiceTest <- a/src/main/java/a/Core.java: a.Core <-REFERENCE- b.Service <-REFERENCE- c.ServiceTest$Inner
+:f:test full run: a JUnit Platform engine is missing or not supported (UNKNOWN_ENGINE): f.FakeEngine
+analysis 85 ms (detection 60 ms, selection 25 ms)
+```
+
+### JSON schema, version 1
+
+One line per field: path, type, meaning. `[]` marks the elements of an array, `?` a value that is `null` when it does not apply. Every field is always present.
+
+```text json-schema-v1
+schemaVersion | number | layout version of this file, 1
+project | string | path of the project, `:` for the root
+changes | object | what changed
+changes.state | string | `known` or `unknown`
+changes.baseRef | string? | the ref compared with
+changes.baseCommit | string? | commit of the base ref
+changes.mergeBase | string? | merge base of the base and HEAD
+changes.reason | string? | why the changes are unknown
+changes.detail | string? | detail of the reason
+changes.files | array | changed files, sorted by path
+changes.files[].path | string | repository-relative path
+changes.files[].status | string | ADDED, MODIFIED, DELETED, RENAMED or UNTRACKED
+changes.files[].kind | string | SOURCE, RESOURCE, BUILD_LOGIC or OTHER
+changes.files[].classes | array | classes compiled from the file
+changes.files[].classes[] | string | binary class name
+forced | object? | the rule that forces a full run of every task
+forced.reason | string | reason code
+forced.text | string | sentence for the reason
+forced.detail | string | what triggered it
+tasks | array | Test tasks of the project, sorted by path
+tasks[].path | string | task path
+tasks[].result | string | `selected` or `full`
+tasks[].rule | object? | why the task runs in full
+tasks[].rule.reason | string | reason code
+tasks[].rule.text | string | sentence for the reason
+tasks[].rule.detail | string | what triggered it
+tasks[].counts | object? | set when the result is `selected`
+tasks[].counts.selected | number | selected test classes
+tasks[].counts.recognised | number | candidates identified as tests by framework markers, over all candidate classes of the test roots
+tasks[].counts.candidates | number | concrete top-level classes of the test roots
+tasks[].tests | array | selected test classes, sorted by name; empty for a full run
+tasks[].tests[].className | string | binary class name
+tasks[].tests[].reason | string | REACHED or GLOBAL
+tasks[].tests[].recognised | boolean | the class is recognised as a test class
+tasks[].tests[].changedFile | string | the changed file that started the path
+tasks[].tests[].seedClass | string | the class compiled from the changed file where the path starts
+tasks[].tests[].reachedClass | string | the class reached: the test class or a class nested in it; for GLOBAL the class registering the extension
+tasks[].tests[].path | array | edges from the seed class outward
+tasks[].tests[].path[].from | string | the dependent class
+tasks[].tests[].path[].to | string | the class it depends on
+tasks[].tests[].path[].kind | string | SUPERTYPE, REFERENCE, INLINE, CONSTANT or TYPEALIAS
+tasks[].durationsMs | object | time spent on the task
+tasks[].durationsMs.selection | number | milliseconds
+totals | object | sums over the tasks
+totals.tasks | number | Test tasks
+totals.fullRunTasks | number | tasks that run in full
+totals.selectedTests | number | selected test classes of the tasks with a selection
+totals.candidates | number | test classes of the tasks with a selection
+durationsMs | object | time spent on the analysis
+durationsMs.detection | number | milliseconds
+durationsMs.selection | number | milliseconds
+durationsMs.total | number | milliseconds
+```
+
+Reason codes of `forced.reason` and `tasks[].rule.reason`: `CHANGES_UNKNOWN`, `CHANGE_NOT_MAPPED`, `UNSUPPORTED_FRAMEWORK`, `UNKNOWN_ENGINE`, `GRAPH_UNKNOWN`, `ANALYSIS_ERROR`. Codes of `changes.reason`: `NOT_A_REPOSITORY`, `GIT_UNAVAILABLE`, `GIT_FAILED`, `NO_HEAD_COMMIT`, `DETACHED_HEAD`, `SHALLOW_CLONE`, `BASE_REF_NOT_FOUND`, `NO_MERGE_BASE`, `ANALYSIS_ERROR`.
+
+New fields and new codes may appear without a new version: ignore fields you do not know and treat a code you do not know as a full run. Removing or renaming a field, or changing what it means, raises `schemaVersion`.
+
 ## Status
 
-Early development. Every Test task of a project that applies the plugin runs only the selected classes; `mode = "off"` restores the stock behaviour.
+Early development. Every Test task of a project that applies the plugin runs only the selected classes; `mode = "off"` restores the stock behaviour. The `testImpactReport` task shows what would be selected.
 
 ## Requirements
 
