@@ -1,5 +1,6 @@
 package gg.aquatic.testimpact.gradle.internal
 
+import gg.aquatic.testimpact.gradle.SelectionInputsService
 import org.gradle.api.Action
 import org.gradle.api.Task
 import org.gradle.api.file.RegularFile
@@ -10,14 +11,20 @@ import org.gradle.api.tasks.testing.Test
 /**
  * Restricts a Test task to its selected classes just before it runs. The patterns go through the same channel as
  * `--tests`, so they combine with a `filter { }` of the build script instead of replacing it. A selection that is
- * missing, unreadable or full leaves the task untouched.
+ * missing, unreadable or full leaves the task untouched, as does a task that already has command line include patterns
+ * or whose selection task did not run.
  *
  * Classes whose selected name and the build script filter have nothing in common must not fail the build, so the task
  * is told not to fail for lack of matches.
  */
-internal class ApplySelection(private val selection: Provider<RegularFile>) : Action<Task> {
+internal class ApplySelection(
+    private val selection: Provider<RegularFile>,
+    private val inputs: Provider<SelectionInputsService>,
+    private val baseline: Set<String>,
+) : Action<Task> {
     override fun execute(task: Task) {
         val test = task as? Test ?: return
+        if (!SelectionGate.applies(test, inputs.get(), baseline)) return
         val classes = try {
             SelectionFile.read(selection.get().asFile.toPath())
         } catch (e: Exception) {

@@ -54,7 +54,7 @@ internal object ChangeDetector {
             is GitRead.Ok -> result
         }
         val classifier = cached ?: classifierFor(read.topLevel)
-        val snapshots = Snapshots(read, classifier, input.classOutputDirs)
+        val snapshots = Snapshots(read, classifier, input.classOutputDirs, input.sourceRoots)
 
         val files = ArrayList<ChangedFile>(read.entries.size + read.untracked.size)
         for (entry in read.entries) files += snapshots.changed(entry)
@@ -67,8 +67,10 @@ internal object ChangeDetector {
         private val read: GitRead.Ok,
         private val classifier: FileClassifier,
         private val classOutputDirs: List<Path>,
+        sourceRoots: List<Path>,
     ) {
         private val rootReal: Path = read.topLevel.toRealPath()
+        private val ownRoots: List<Path> = sourceRoots.map(::real)
         private val jarEntries = HashMap<Path, Set<String>>()
 
         fun changed(entry: DiffEntry): ChangedFile {
@@ -98,22 +100,11 @@ internal object ChangeDetector {
             } catch (_: IllegalArgumentException) {
                 return unresolved(snapshot)
             }
-            if (verify && names.isNotEmpty() && !names.all(::compiled) && !outsideClasspath(snapshot.path)) {
-                return unresolved(snapshot)
-            }
-            return snapshot.copy(classes = names)
-        }
-
-        /**
-         * A source file of a module that contributes no class directory or jar to the classpath cannot be reached by
-         * the tests under analysis. A file of the project itself, or one whose module cannot be told, stays unresolved.
-         */
-        private fun outsideClasspath(path: String): Boolean {
-            val segments = path.split('/')
-            val src = segments.indexOf("src")
-            if (src <= 0) return false
-            val module = real(read.topLevel.resolve(segments.take(src).joinToString("/")))
-            return classOutputDirs.none { real(it).startsWith(module) }
+            if (!verify || names.isEmpty() || names.all(::compiled)) return snapshot.copy(classes = names)
+            // A file of the project itself must have its classes; for any other file the selector decides, because
+            // only the task's class graph tells whether the file is related to it at all.
+            if (ownRoots.any { real(read.topLevel.resolve(snapshot.path)).startsWith(it) }) return unresolved(snapshot)
+            return snapshot.copy(classes = names, classesCompiled = false)
         }
 
         private fun real(path: Path): Path {

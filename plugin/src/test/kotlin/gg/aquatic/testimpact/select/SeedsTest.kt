@@ -38,6 +38,14 @@ class SeedsTest {
     }
 
     @Test
+    fun `a source file not compiled for the task becomes an unverified seed`() {
+        val snapshot = FileSnapshot("lib/src/test/p/LibTest.kt", FileKind.SOURCE, listOf("p.LibTest"), classesCompiled = false)
+        val set = Seeds.from(known(modified(snapshot)))
+        assertNull(set.forced)
+        assertEquals(true, set.seeds.single().unverified)
+    }
+
+    @Test
     fun `default package source key is the file name`() {
         val set = Seeds.from(known(modified(source("src/Top.java", "Top"))))
         assertEquals(listOf("Top.java"), set.seeds.single().sourceKeys)

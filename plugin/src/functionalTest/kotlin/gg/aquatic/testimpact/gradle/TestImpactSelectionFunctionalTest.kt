@@ -66,6 +66,37 @@ class TestImpactSelectionFunctionalTest {
     }
 
     @Test
+    fun `a test change in a dependency module does not force its dependants`() {
+        ImpactFixture.multiModule(projectDir)
+        GitFixture.init(projectDir)
+        ImpactFixture.file(
+            projectDir, "a/src/test/java/a/CoreTest.java",
+            "package a;\n\nimport org.junit.jupiter.api.Test;\n\nclass CoreTest {\n    @Test\n    void runs() { new Core().value(); new Core().value(); }\n}\n",
+        )
+
+        val result = run("test")
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":a:test")?.outcome)
+        assertEquals(TaskOutcome.SKIPPED, result.task(":c:test")?.outcome)
+        assertEquals(TaskOutcome.SKIPPED, result.task(":k:test")?.outcome)
+        assertContains(result.output, "TestImpact :c:test: changed 1, selected 0 of 1 test classes")
+    }
+
+    @Test
+    fun `excluding the selection task runs the whole test task`() {
+        ImpactFixture.singleModule(projectDir)
+        GitFixture.init(projectDir)
+        ImpactFixture.file(projectDir, "src/main/java/app/Calc.java", ImpactFixture.calc(2))
+
+        val result = run("test", "-x", "testImpactSelectTest")
+
+        assertEquals(TaskOutcome.SUCCESS, result.task(":test")?.outcome)
+        assertTrue(Files.exists(report("", "app.CalcTest")))
+        assertTrue(Files.exists(report("", "app.OtherTest")))
+        assertFalse(result.output.contains("TestImpact :test:"), result.output)
+    }
+
+    @Test
     fun `mode off through the gradle property leaves the build as without the plugin`() {
         offBuildIsStock(arguments = listOf("-PtestImpact=off"))
     }

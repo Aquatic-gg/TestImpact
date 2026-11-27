@@ -277,14 +277,41 @@ class ChangeDetectorTest {
         repo.write("far/src/main/java/q/Far.java", "package q;\n\npublic class Far {}\n")
         repo.write("own/src/main/java/q/Near.java", "package q;\n\npublic class Near {}\n")
         val detection = ChangeDetector.detect(
-            input(repo, "main").copy(classOutputDirs = listOf(classes), conventionalRoots = true),
+            input(repo, "main").copy(
+                classOutputDirs = listOf(classes),
+                sourceRoots = listOf(repo.dir.resolve("own/src/main/java")),
+                conventionalRoots = true,
+            ),
             repo.env,
         )
         val known = known(detection)
         val far = known.file("far/src/main/java/q/Far.java").after
         assertEquals(true, far?.classesResolved)
+        assertEquals(false, far?.classesCompiled)
         assertEquals(listOf("q.Far"), far?.classes)
         assertEquals(false, known.file("own/src/main/java/q/Near.java").after?.classesResolved)
+    }
+
+    @Test
+    fun ownSourceStaysUnresolvedWhenTheClassOutputLiesOutsideTheModule() = withFeature { repo ->
+        val elsewhere = repo.base.resolve("relocated-build/classes")
+        Files.createDirectories(elsewhere)
+        repo.write("own/src/main/java/q/Built.java", "package q;\n\npublic class Built {}\n")
+        repo.write("own/src/main/java/q/Missing.java", "package q;\n\npublic class Missing {}\n")
+        Files.createDirectories(elsewhere.resolve("q"))
+        Files.write(elsewhere.resolve("q/Built.class"), ByteArray(0))
+        val detection = ChangeDetector.detect(
+            input(repo, "main").copy(
+                classOutputDirs = listOf(elsewhere),
+                sourceRoots = listOf(repo.dir.resolve("own/src/main/java")),
+                conventionalRoots = true,
+            ),
+            repo.env,
+        )
+        val known = known(detection)
+        assertEquals(true, known.file("own/src/main/java/q/Built.java").after?.classesCompiled)
+        val missing = known.file("own/src/main/java/q/Missing.java").after
+        assertEquals(false, missing?.classesResolved)
     }
 
     @Test

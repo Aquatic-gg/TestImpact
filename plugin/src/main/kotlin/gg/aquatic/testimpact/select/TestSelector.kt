@@ -141,8 +141,25 @@ internal object TestSelector {
             is SeedResult.Known -> scanned.inputs
         }
 
+        val sources = graph.classes.mapNotNullTo(HashSet()) { graph.sourceOf(it) }
+        val reachable = ArrayList<Seed>()
+        for (seed in seeds.seeds) {
+            if (seed.unverified) {
+                val related = seed.classes.any { graph.facts(it) != null } || seed.sourceKeys.any { it in sources }
+                if (!related) continue
+                if (seed.classes.any { graph.facts(it) == null }) {
+                    return unknown(
+                        input,
+                        SelectionUnknownReason.CHANGE_NOT_MAPPED,
+                        "classes of ${seed.origin} could not be resolved",
+                    )
+                }
+            }
+            reachable.add(seed)
+        }
+
         val candidates = TestCandidates.find(graph, testGraph.classes)
-        val reach = ReverseReach.reach(graph, seeds.seeds, candidates.names.toSet(), SeedGraph.of(seedInputs, rules))
+        val reach = ReverseReach.reach(graph, reachable, candidates.names.toSet(), SeedGraph.of(seedInputs, rules))
         val global = if (reach.selected.size < candidates.names.size) reachedGlobal(input, graph, reach) else null
         val always = rules.alwaysRun(candidates.names).toSet()
 

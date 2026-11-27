@@ -112,6 +112,7 @@ internal abstract class TestImpactSelectTask : DefaultTask() {
         }
         AtomicFile.write(resultFile.get().asFile.toPath(), TaskSelectionCodec.write(decision))
         AtomicFile.write(selectionFile.get().asFile.toPath(), SelectionFile.render(decision))
+        selectionInputs.get().markSelected(taskPath)
         logger.lifecycle("TestImpact {}: {}", taskPath, decision.consoleLine())
     }
 

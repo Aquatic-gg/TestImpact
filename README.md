@@ -48,7 +48,9 @@ TestImpact :app:integrationTest: changed 3, selected all test classes, full: cha
 - Anything uncertain runs the whole task and the line says why after `full:`. A failure inside the plugin does the same.
 - The selection is an input of the `Test` task, so a partial run is never reused as the result of a full one, from the up-to-date check or the build cache.
 - `--tests` on the command line wins: the task runs what `--tests` names and nothing is selected away. A `filter { }` in the build script stays in force together with the selection; classes it excludes are not run and an empty intersection does not fail the build.
-- Changes in other modules are found through the conventional layout `src/<set>/java`, `src/<set>/kotlin` and `src/<set>/resources`. A change in a module that puts no classes on the task's classpath does not affect that task. A Java or Kotlin file outside every known layout runs the full task, and so does any resource change or a change of build logic.
+- A test the IDE or the Tooling API launches (`includeTest`, a single test run from an IDE) is treated like `--tests`: the task keeps the tests that run names and the selection does not touch it. The plugin cannot see that request when the task graph is built, so the line for the task may still show a selection; set `TEST_IMPACT=off` to switch the plugin off for such runs.
+- `-x testImpactSelect<Task>` leaves the selection out: that `Test` task then runs in full.
+- Changes in other modules are found through the conventional layout `src/<set>/java`, `src/<set>/kotlin` and `src/<set>/resources`. A changed source file whose classes the task's class graph does not know, such as a test of another module, does not affect that task. A Java or Kotlin file outside every known layout runs the full task, and so does any resource change or a change of build logic.
 - Only `Test` tasks that exist after the project is evaluated are wired. A task created later runs as without the plugin.
 
 ### Mode

@@ -8,6 +8,7 @@ import gg.aquatic.testimpact.seed.SeedScanner
 import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
 import java.nio.file.Path
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Shares what several Test tasks of one build ask for again and again: the git diff of a project and the seed facts
@@ -19,6 +20,16 @@ internal abstract class SelectionInputsService : BuildService<BuildServiceParame
     private val scans = OncePerKey<Pair<List<String>, List<String>>, SeedResult> { key ->
         SeedScanner.scan(key.first.map(Path::of), key.second.map(Path::of))
     }
+
+    private val selected: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /** Records that the selection task of a Test task ran in this build. */
+    fun markSelected(taskPath: String) {
+        selected.add(taskPath)
+    }
+
+    /** False when the selection task of a Test task did not run in this build, for example under `-x`. */
+    fun hasSelected(taskPath: String): Boolean = taskPath in selected
 
     internal val memoizedDetections: Int get() = detections.size
 
@@ -40,6 +51,7 @@ internal abstract class SelectionInputsService : BuildService<BuildServiceParame
     override fun close() {
         detections.clear()
         scans.clear()
+        selected.clear()
     }
 
     private fun keys(roots: List<Path>): List<String> = roots.map { normal(it).toString() }.distinct().sorted()

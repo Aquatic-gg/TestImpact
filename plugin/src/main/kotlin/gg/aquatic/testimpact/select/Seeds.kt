@@ -64,7 +64,7 @@ internal object Seeds {
         if (sides.isEmpty() || sides.any { !it.classesResolved || it.classes.isEmpty() }) return null
         val classes = sides.flatMap { it.classes }.distinct().sorted()
         val keys = sides.mapNotNull { sourceKey(it) }.distinct().sorted()
-        return Seed(file.path, classes, keys)
+        return Seed(file.path, classes, keys, sides.any { !it.classesCompiled })
     }
 
     private fun sourceKey(side: FileSnapshot): String? {

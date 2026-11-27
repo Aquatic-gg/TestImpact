@@ -68,7 +68,7 @@ internal object TestTaskWiring {
         mode: TestImpactMode,
         userTests: Boolean,
     ) {
-        val test = project.tasks.named(name, Test::class.java).get()
+        val testTask = project.tasks.named(name, Test::class.java)
         val sourceSets = project.extensions.findByType(SourceSetContainer::class.java)
         val select = project.tasks.register(
             "testImpactSelect" + name.replaceFirstChar { it.uppercase() },
@@ -76,7 +76,7 @@ internal object TestTaskWiring {
         ) { task ->
             task.group = "verification"
             task.description = "Selects the classes of '$name' that the changes since the base can reach."
-            val capture = TestTaskCapture.of(test, project.providers, project.objects, project.gradle.gradleUserHomeDir)
+            val capture = TestTaskCapture.of(testTask.get(), project.providers, project.objects, project.gradle.gradleUserHomeDir)
             task.capture.set(capture)
             task.dependsOn(capture.testClassesDirs, capture.classpath)
             task.usesService(classGraph)
@@ -97,11 +97,17 @@ internal object TestTaskWiring {
             task.resultFile.set(project.layout.buildDirectory.file("testimpact/selection/$name.txt"))
         }
         val selection = select.flatMap { it.selectionFile }
-        test.inputs.file(selection)
-            .withPropertyName("testImpactSelection")
-            .withPathSensitivity(PathSensitivity.NONE)
-        test.onlyIf("TestImpact selected no test class", SelectionNotEmpty(selection))
-        test.doFirst(ApplySelection(selection))
+        testTask.configure { test ->
+            test.usesService(selectionInputs)
+            test.dependsOn(select)
+            test.inputs.file(selection.filter { it.asFile.isFile })
+                .withPropertyName("testImpactSelection")
+                .withPathSensitivity(PathSensitivity.NONE)
+                .optional()
+            val baseline = test.filter.includePatterns.toSet()
+            test.onlyIf("TestImpact selected no test class", SelectionNotEmpty(selection, selectionInputs, baseline))
+            test.doFirst(ApplySelection(selection, selectionInputs, baseline))
+        }
     }
 
     private fun roots(sourceSets: SourceSetContainer?, of: (SourceSet) -> Set<File>): List<File> =
