@@ -104,6 +104,10 @@ internal object TestTaskWiring {
                 .withPropertyName("testImpactSelection")
                 .withPathSensitivity(PathSensitivity.NONE)
                 .optional()
+            // The file of an earlier build stays on disk when the selection task is excluded; without this marker such
+            // a run would look like the partial run that wrote the file.
+            val path = test.path
+            test.inputs.property("testImpactSelectionRan", selectionInputs.map { it.hasSelected(path) })
             val baseline = test.filter.includePatterns.toSet()
             test.onlyIf("TestImpact selected no test class", SelectionNotEmpty(selection, selectionInputs, baseline))
             test.doFirst(ApplySelection(selection, selectionInputs, baseline))

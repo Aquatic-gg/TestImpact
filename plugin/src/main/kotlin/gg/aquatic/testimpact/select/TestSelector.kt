@@ -6,6 +6,7 @@ import gg.aquatic.testimpact.graph.ClassProblem
 import gg.aquatic.testimpact.graph.DependencyGraph
 import gg.aquatic.testimpact.graph.EdgeKind
 import gg.aquatic.testimpact.seed.SeedGraph
+import gg.aquatic.testimpact.seed.SeedInputs
 import gg.aquatic.testimpact.seed.SeedResult
 import gg.aquatic.testimpact.seed.SeedRules
 import gg.aquatic.testimpact.seed.SeedScanner
@@ -131,7 +132,10 @@ internal object TestSelector {
             testGraph.classes.mapNotNull(testGraph::facts) + otherGraph.classes.mapNotNull(otherGraph::facts),
         )
 
-        val seedInputs = when (val scanned = seedScan(input.testRoots + input.otherRoots)) {
+        // The seed facts only add links to walk from a changed class, so with nothing changed they are not read at all.
+        val seedInputs = if (seeds.seeds.isEmpty()) SeedInputs(emptyList(), emptyList()) else when (
+            val scanned = seedScan(input.testRoots + input.otherRoots)
+        ) {
             is SeedResult.Unknown -> return unknown(
                 input,
                 SelectionUnknownReason.GRAPH_UNKNOWN,

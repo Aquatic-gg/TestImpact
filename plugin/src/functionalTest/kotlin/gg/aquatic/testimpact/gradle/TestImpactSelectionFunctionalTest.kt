@@ -97,6 +97,22 @@ class TestImpactSelectionFunctionalTest {
     }
 
     @Test
+    fun `excluding the selection task after a partial run does not reuse the partial result`() {
+        ImpactFixture.singleModule(projectDir)
+        GitFixture.init(projectDir)
+        ImpactFixture.file(projectDir, "src/main/java/app/Calc.java", ImpactFixture.calc(2))
+
+        val partial = run("test")
+        assertEquals(TaskOutcome.SUCCESS, partial.task(":test")?.outcome)
+        assertFalse(Files.exists(report("", "app.OtherTest")))
+
+        val full = run("test", "-x", "testImpactSelectTest")
+
+        assertEquals(TaskOutcome.SUCCESS, full.task(":test")?.outcome, full.output)
+        assertTrue(Files.exists(report("", "app.OtherTest")))
+    }
+
+    @Test
     fun `mode off through the gradle property leaves the build as without the plugin`() {
         offBuildIsStock(arguments = listOf("-PtestImpact=off"))
     }

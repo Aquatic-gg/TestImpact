@@ -10,10 +10,11 @@ import gg.aquatic.testimpact.gradle.internal.TestImpactMode
  * @property taskPath path of the Test task, for example `:app:test`.
  * @property mode the mode the task ran under.
  * @property outcome what the task does.
- * @property changedFiles changed file paths, or null when the changes could not be determined.
+ * @property changedFiles changed file paths, or null when the changes could not be determined or were not computed
+ * (a mode or a `--tests` request that decides before looking at git).
  * @property candidateCount concrete top-level test classes of the task, or null when they were not analysed.
  * @property selected the selected classes sorted by name; for a [TaskOutcome.FULL] outcome it holds the partial
- * selection that was discarded (for `wide-change`) or nothing.
+ * selection that was discarded (for `wide-change` and `not-recognised`) or nothing.
  * @property fullRule id of the reason the whole task runs, set exactly for [TaskOutcome.FULL]: `mode-full`,
  * `user-tests`, `wide-change`, `not-recognised`, `plugin-error`, or an unknown-selection reason in kebab-case such
  * as `changes-unknown`.

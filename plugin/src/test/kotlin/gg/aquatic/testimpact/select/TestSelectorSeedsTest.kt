@@ -90,6 +90,17 @@ class TestSelectorSeedsTest {
     }
 
     @Test
+    fun `nothing changed reads no seed facts`() {
+        var scans = 0
+        val result = select(rules = SeedRules.of(emptyList(), listOf("*Check")), seedScan = {
+            scans++
+            SeedResult.Known(SeedFixtures.inputs)
+        })
+        assertEquals(0, scans)
+        assertEquals(10, result.tests.size)
+    }
+
+    @Test
     fun `an unreadable seed scan is graph unknown`() {
         val problem = ClassProblem("res/a.properties", "cannot read")
         val seeds = SeedSet(listOf(Seed("change.kt", listOf(name("reflect.target.ForNameTarget")), emptyList())))

@@ -2,6 +2,8 @@ package gg.aquatic.testimpact.gradle
 
 import gg.aquatic.testimpact.change.ChangeDetection
 import gg.aquatic.testimpact.change.DetectionInput
+import gg.aquatic.testimpact.change.UnknownReason
+import gg.aquatic.testimpact.change.internal.GitRead
 import gg.aquatic.testimpact.gradle.internal.ServiceNames
 import gg.aquatic.testimpact.seed.SeedResult
 import org.gradle.api.provider.Provider
@@ -13,6 +15,7 @@ import java.nio.file.Path
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertSame
@@ -52,6 +55,42 @@ class SelectionInputsServiceTest {
         } finally {
             pool.shutdownNow()
         }
+    }
+
+    @Test
+    fun `projects of one repository share a single git read`() {
+        val service = service()
+        val top = Files.createDirectories(temp.resolve("repo"))
+        val reads = AtomicInteger()
+        service.topLevelOf = { top }
+        service.gitReadOf = { _, _ ->
+            reads.incrementAndGet()
+            GitRead.Failed(ChangeDetection.Unknown(UnknownReason.GIT_FAILED, "fake"))
+        }
+        val a = input(top.resolve("a"))
+        val b = input(top.resolve("b"))
+
+        service.changes(a)
+        service.changes(b)
+        service.changes(a.copy(sourceRoots = listOf(top.resolve("a/src"))))
+
+        assertEquals(1, reads.get())
+        assertEquals(1, service.memoizedGitReads)
+        assertEquals(3, service.memoizedDetections)
+        service.changes(a.copy(baseRef = "main"))
+        assertEquals(2, reads.get())
+    }
+
+    @Test
+    fun `a shared root is scanned once for different root sets`() {
+        val service = service()
+        val a = Files.createDirectories(temp.resolve("a"))
+        val b = Files.createDirectories(temp.resolve("b"))
+        val c = Files.createDirectories(temp.resolve("c"))
+        service.seeds(listOf(a, b), emptyList())
+        service.seeds(listOf(a, c), emptyList())
+        assertEquals(3, service.memoizedRootScans)
+        assertEquals(2, service.memoizedScans)
     }
 
     @Test

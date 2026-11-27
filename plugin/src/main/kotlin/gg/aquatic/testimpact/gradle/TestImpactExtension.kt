@@ -39,8 +39,9 @@ public abstract class TestImpactExtension {
 
     /**
      * Git ref the changes are measured against, for example `origin/main`. When absent the plugin derives it
-     * from the repository. 1 to 255 characters, no whitespace or control characters, no leading `-` and no `..`
-     * at either end.
+     * from the repository. An empty value counts as not set. Otherwise at most 255 characters, no whitespace or
+     * control characters, no leading `-` and no `..` at either end. On a detached HEAD only a value set here is
+     * used; without one the whole task runs.
      */
     public abstract val baseRef: Property<String>
 

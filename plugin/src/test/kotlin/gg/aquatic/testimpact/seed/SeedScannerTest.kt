@@ -233,6 +233,22 @@ class SeedScannerTest {
     }
 
     @Test
+    fun `merging the scans of single roots equals scanning them together`() {
+        val one = writeJar(temp.resolve("one.jar"), mapOf("META-INF/MANIFEST.MF" to "a.One".toByteArray(), "x.bin" to byteArrayOf(1)))
+        val two = writeDirectory(temp.resolve("two"), mapOf("META-INF/MANIFEST.MF" to "b.Two a.One".toByteArray(), "y.bin" to byteArrayOf(2)))
+        val bad = temp.resolve("bad.jar").also { it.writeText("not a zip archive") }
+
+        val together = SeedScanner.scan(listOf(one), listOf(two))
+        val merged = SeedScanner.merge(
+            listOf(SeedScanner.scan(listOf(one), emptyList()), SeedScanner.scan(emptyList(), listOf(two))),
+        )
+        assertEquals(together, merged)
+
+        val failing = SeedScanner.scan(listOf(one, bad), emptyList())
+        assertEquals(failing, SeedScanner.merge(listOf(SeedScanner.scan(listOf(one), emptyList()), SeedScanner.scan(listOf(bad), emptyList()))))
+    }
+
+    @Test
     fun `corrupt jar, malformed class and truncated entry make the result unknown`() {
         val corrupt = temp.resolve("bad.jar")
         corrupt.writeText("not a zip archive")

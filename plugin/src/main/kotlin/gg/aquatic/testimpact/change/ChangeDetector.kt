@@ -23,37 +23,52 @@ internal object ChangeDetector {
 
     /** @param envOverrides environment for the git processes, a hook for tests. */
     fun detect(input: DetectionInput, envOverrides: Map<String, String> = emptyMap()): ChangeDetection =
+        derive(readGit(input, envOverrides), input)
+
+    /**
+     * The git half of [detect]. The result depends on the repository and the base ref, not on the roots of [input], so
+     * several projects of one repository can share it. Never throws.
+     */
+    fun readGit(input: DetectionInput, envOverrides: Map<String, String> = emptyMap()): GitRead =
         try {
-            detectOrThrow(input, envOverrides)
+            GitRepository(GitRunner(input.gitExecutable, input.gitTimeout, envOverrides))
+                .read(input.projectDir, input.baseRef) { _, path -> path.endsWith(".kt") || path.endsWith(".java") }
         } catch (e: Exception) {
-            ChangeDetection.Unknown(
-                UnknownReason.ANALYSIS_ERROR,
-                "${e.javaClass.simpleName}: ${e.message.orEmpty()}".take(MAX_DETAIL),
-            )
+            GitRead.Failed(failure(e))
         }
 
-    private fun detectOrThrow(input: DetectionInput, envOverrides: Map<String, String>): ChangeDetection {
-        val runner = GitRunner(input.gitExecutable, input.gitTimeout, envOverrides)
-        fun classifierFor(topLevel: Path): FileClassifier {
-            val paths = RepoPaths(topLevel)
-            return FileClassifier(
-                input.sourceRoots.mapNotNull(paths::relativize),
-                input.resourceRoots.mapNotNull(paths::relativize),
-                input.buildLogicRoots.mapNotNull(paths::relativize),
-                input.conventionalRoots,
-            )
+    /** The top-level directory of the repository around the project of [input], or null when there is none. */
+    fun topLevel(input: DetectionInput, envOverrides: Map<String, String> = emptyMap()): Path? =
+        try {
+            GitRepository(GitRunner(input.gitExecutable, input.gitTimeout, envOverrides)).topLevel(input.projectDir)
+        } catch (_: Exception) {
+            null
         }
-        var cached: FileClassifier? = null
-        val read = when (
-            val result = GitRepository(runner).read(input.projectDir, input.baseRef) { topLevel, path ->
-                val classifier = cached ?: classifierFor(topLevel).also { cached = it }
-                classifier.classify(path).kind == FileKind.SOURCE
+
+    /** The roots-dependent half of [detect]: classifies the files of [read] for the project of [input]. Never throws. */
+    fun derive(read: GitRead, input: DetectionInput): ChangeDetection =
+        when (read) {
+            is GitRead.Failed -> read.unknown
+            is GitRead.Ok -> try {
+                deriveOrThrow(read, input)
+            } catch (e: Exception) {
+                failure(e)
             }
-        ) {
-            is GitRead.Failed -> return result.unknown
-            is GitRead.Ok -> result
         }
-        val classifier = cached ?: classifierFor(read.topLevel)
+
+    private fun failure(e: Exception): ChangeDetection.Unknown = ChangeDetection.Unknown(
+        UnknownReason.ANALYSIS_ERROR,
+        "${e.javaClass.simpleName}: ${e.message.orEmpty()}".take(MAX_DETAIL),
+    )
+
+    private fun deriveOrThrow(read: GitRead.Ok, input: DetectionInput): ChangeDetection {
+        val paths = RepoPaths(read.topLevel)
+        val classifier = FileClassifier(
+            input.sourceRoots.mapNotNull(paths::relativize),
+            input.resourceRoots.mapNotNull(paths::relativize),
+            input.buildLogicRoots.mapNotNull(paths::relativize),
+            input.conventionalRoots,
+        )
         val snapshots = Snapshots(read, classifier, input.classOutputDirs, input.sourceRoots)
 
         val files = ArrayList<ChangedFile>(read.entries.size + read.untracked.size)

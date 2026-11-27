@@ -402,7 +402,7 @@ class ChangeDetectorTest {
             repo.gitIn(repo.base, "clone", "-q", "--no-local", "--depth", "1", repo.dir.toString(), "shallow")
             assertUnknown(UnknownReason.SHALLOW_CLONE, detect(repo, base = "main", dir = repo.sibling("shallow")))
             repo.git("checkout", "-q", "--detach")
-            assertUnknown(UnknownReason.DETACHED_HEAD, detect(repo))
+            assertUnknown(UnknownReason.DETACHED_HEAD, detect(repo, base = null))
             repo.git("checkout", "-q", "--orphan", "lone")
             repo.git("rm", "-rf", "-q", ".")
             repo.write("b.txt", "other\n")
@@ -412,7 +412,21 @@ class ChangeDetectorTest {
     }
 
     @Test
-    fun inheritedRepositoryEnvironmentIsIgnored() = withFeature { repo ->
+    fun detachedHeadWithAnExplicitBaseDetectsTheChanges() = withFeature { repo ->
+        compiled(repo, "p.A")
+        repo.write(path("A"), kt("p", "A"))
+        repo.commitAll("committed")
+        repo.git("checkout", "-q", "--detach")
+
+        val detection = known(detect(repo, base = "main"))
+
+        assertEquals(listOf(path("A")), detection.files.map { it.path })
+        assertUnknown(UnknownReason.DETACHED_HEAD, detect(repo, base = null))
+        assertUnknown(UnknownReason.BASE_REF_NOT_FOUND, detect(repo, base = "missing"))
+    }
+
+    @Test
+    fun inheritedRepositoryEnvironmentIsIgnored()= withFeature { repo ->
         val other = repo.sibling("other")
         repo.gitIn(repo.base, "init", "-q", "-b", "main", other.toString())
         compiled(repo, "p.A")
