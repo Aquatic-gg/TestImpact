@@ -52,7 +52,7 @@ TestImpact :app:integrationTest: changed ?, selected all test classes, full: cha
 - `-x testImpactSelect<Task>` leaves the selection out: that `Test` task then runs in full, also when an earlier build left a selection behind.
 - Git is read once per build and repository, not once per `Test` task, and the class files of a root are scanned once however many tasks have it on their classpath.
 - On a detached HEAD, which is what a pull-request checkout of most CI systems is, the changes are measured only when `baseRef` is set and resolves. Without `baseRef` the whole task runs (`changes-unknown`), because the default candidates are guesses that suit a checked-out branch.
-- Changes in other modules are found through the conventional layout `src/<set>/java`, `src/<set>/kotlin` and `src/<set>/resources`. A changed source file whose classes the task's class graph does not know, such as a test of another module, does not affect that task. A Java or Kotlin file outside every known layout runs the full task, and so does any resource change or a change of build logic. Build logic is a build script, `buildSrc`, `build-logic` and `gradle` next to the settings file, and any file of a nested build below it, that is a directory with its own settings file such as an included build.
+- Changes in other modules are found through the conventional layout `src/<set>/java`, `src/<set>/kotlin` and `src/<set>/resources`. A changed source file whose classes the task's class graph does not know, such as a test of another module, does not affect that task. A Java or Kotlin file outside every known layout runs the full task, and so does a resource change in a resource folder of the task's own project or a change of build logic. A resource folder that another module adds outside the conventional layout (for example `srcDir("config")` in a library) is not known to the task; see Known gaps. Build logic is a build script, `buildSrc`, `build-logic` and `gradle` next to the settings file, and any file of a nested build below it, that is a directory with its own settings file such as an included build.
 - Only `Test` tasks that exist after the project is evaluated are wired. A task created later runs as without the plugin.
 
 ### Mode
@@ -66,7 +66,7 @@ TestImpact :app:integrationTest: changed ?, selected all test classes, full: cha
 
 - `auto` selects.
 - `full` runs every test and still prints the line, so builds can be compared.
-- `off` adds nothing to the build: no task, no task input, no action. Gradle behaves exactly as without the plugin, including build cache hits.
+- `off` adds no selection task, input or action to the `Test` tasks. Gradle behaves as without the plugin for them, including build cache hits. `testImpactReport` stays available and reports `MODE_OFF`.
 
 The value is trimmed and not case-sensitive. A value that is none of these fails the build with a message naming where it came from.
 
@@ -107,6 +107,7 @@ For every test task the plugin reads the compiled classes on the task's runtime 
 Known gaps:
 
 - Constants and inline function bodies of a project that is only a `compileOnly` dependency are folded into the class using them, so a change to them can be missed.
+- A resource folder another module adds outside the conventional layout (for example `srcDir("config")` in `:lib`) is not classified: a change there does not select the tests of `:app` that read the file from the `lib` jar, in the build and in the report alike.
 - Project outputs that a build step transforms into the Gradle user home are not scanned.
 - Frameworks that find tests by scanning the classpath, such as Cucumber or custom runners, are not understood.
 
