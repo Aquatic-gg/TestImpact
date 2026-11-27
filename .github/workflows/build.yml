@@ -69,7 +69,7 @@ jobs:
         run: >-
           ./gradlew :plugin:test
           -Ptestimpact.testJava=${{ matrix.jdk }}
-          -Porg.gradle.java.installations.fromEnv=JAVA_HOME_17_X64,JAVA_HOME_${{ matrix.jdk }}_X64
+          -Dorg.gradle.java.installations.fromEnv=JAVA_HOME_17_X64,JAVA_HOME_${{ matrix.jdk }}_X64
           --warning-mode=fail --stacktrace
       - name: Upload reports
         if: failure()
