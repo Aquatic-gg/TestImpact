@@ -50,7 +50,7 @@ class TaskSelectionCodecTest {
             changedFiles = null,
             candidateCount = null,
             selected = emptyList(),
-            fullRule = "changes-unknown",
+            fullRule = "no-base",
             fullDetail = hostile,
             analysisMillis = 0,
         )

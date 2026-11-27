@@ -18,6 +18,11 @@ internal object FallbackFixture {
         return base.withArguments(args.toList() + flags).forwardOutput().build()
     }
 
+    /** Runs a build that is expected to fail. */
+    fun buildAndFail(root: Path, vararg args: String): BuildResult =
+        GradleRunner.create().withProjectDir(root.toFile()).withPluginClasspath()
+            .withArguments(args.toList() + flags).forwardOutput().buildAndFail()
+
     fun ran(root: Path, className: String, task: String = "test"): Boolean =
         Files.exists(root.resolve("build/test-results/$task/TEST-$className.xml"))
 

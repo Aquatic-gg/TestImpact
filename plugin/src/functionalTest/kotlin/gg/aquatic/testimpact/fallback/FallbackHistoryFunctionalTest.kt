@@ -49,6 +49,18 @@ class FallbackHistoryFunctionalTest {
     }
 
     @Test
+    fun `a red first run does not write the marker`() {
+        ImpactFixture.singleModule(projectDir)
+        ImpactFixture.file(projectDir, "src/test/java/app/CalcTest.java", ImpactFixture.test("CalcTest", "org.junit.jupiter.api.Assertions.fail();"))
+        GitFixture.init(projectDir)
+
+        val result = FallbackFixture.buildAndFail(projectDir, "test")
+
+        assertContains(result.output, "full: first-run")
+        assertFalse(Files.exists(marker()), result.output)
+    }
+
+    @Test
     fun `a new test set without a marker runs in full while the test task selects`() {
         val suite = """
             testing {
