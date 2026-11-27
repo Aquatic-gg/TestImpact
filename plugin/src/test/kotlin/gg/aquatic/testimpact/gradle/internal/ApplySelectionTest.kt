@@ -81,6 +81,17 @@ class ApplySelectionTest {
     }
 
     @kotlin.test.Test
+    fun `a selected task with command line include patterns logs nothing`() {
+        val task = testTask()
+        task.setTestNameIncludePatterns(listOf("p.CalcTest"))
+        inputs.get().markSelected(task.path)
+        val lines = ArrayList<String>()
+        val selection = project.provider { project.layout.projectDirectory.file(file("testimpact-selection 1\nselected\na.A\n").toString()) }
+        ApplySelection(selection, inputs, baseline(task) - "p.CalcTest", lines::add).execute(task)
+        assertEquals(emptyList(), lines)
+    }
+
+    @kotlin.test.Test
     fun `a task whose selection did not run is silent`() {
         val task = testTask()
         val lines = ArrayList<String>()

@@ -86,6 +86,7 @@ class TestImpactSelectionFunctionalTest {
         assertTrue(Files.exists(report("", "app.OtherTest")))
         assertFalse(Files.exists(report("", "app.CalcTest")))
         assertContains(result.output, "full: user-tests")
+        assertFalse(result.output.contains("filter was changed after configuration"), result.output)
     }
 
     @Test

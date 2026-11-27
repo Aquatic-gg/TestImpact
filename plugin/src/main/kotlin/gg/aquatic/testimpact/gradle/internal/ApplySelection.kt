@@ -26,13 +26,15 @@ internal class ApplySelection(
     override fun execute(task: Task) {
         val test = task as? Test ?: return
         val service = inputs.get()
-        if (!SelectionGate.applies(test, service, baseline)) {
-            if (service.hasSelected(test.path)) {
+        when (SelectionGate.verdict(test, service, baseline)) {
+            SelectionGate.Verdict.APPLIES -> Unit
+            SelectionGate.Verdict.LATE_FILTER -> {
                 lifecycle(
                     "TestImpact ${task.path}: the test filter was changed after configuration, the task is not narrowed and runs as requested",
                 )
+                return
             }
-            return
+            SelectionGate.Verdict.NOT_SELECTED, SelectionGate.Verdict.COMMAND_LINE -> return
         }
         val classes = try {
             SelectionFile.read(selection.get().asFile.toPath())

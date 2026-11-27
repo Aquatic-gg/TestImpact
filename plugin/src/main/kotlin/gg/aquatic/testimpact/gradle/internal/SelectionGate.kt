@@ -11,16 +11,24 @@ import org.gradle.api.tasks.testing.Test
  * those after the project is configured, and such a request wins over the selection.
  */
 internal object SelectionGate {
-    fun applies(test: Test, inputs: SelectionInputsService, baseline: Set<String>): Boolean =
-        inputs.hasSelected(test.path) && !requested(test, baseline)
+    enum class Verdict { APPLIES, NOT_SELECTED, COMMAND_LINE, LATE_FILTER }
 
-    /** An unreadable filter counts as a request, so the task runs untouched. */
-    private fun requested(test: Test, baseline: Set<String>): Boolean = try {
-        !baseline.containsAll(test.filter.includePatterns) ||
-            (test.filter as? DefaultTestFilter)?.commandLineIncludePatterns?.isNotEmpty() ?: false
+    fun applies(test: Test, inputs: SelectionInputsService, baseline: Set<String>): Boolean =
+        verdict(test, inputs, baseline) == Verdict.APPLIES
+
+    fun verdict(test: Test, inputs: SelectionInputsService, baseline: Set<String>): Verdict = when {
+        !inputs.hasSelected(test.path) -> Verdict.NOT_SELECTED
+        else -> requested(test, baseline) ?: Verdict.APPLIES
+    }
+
+    /** An unreadable filter counts as a late filter, so the task runs untouched. */
+    private fun requested(test: Test, baseline: Set<String>): Verdict? = try {
+        if ((test.filter as? DefaultTestFilter)?.commandLineIncludePatterns?.isNotEmpty() == true) Verdict.COMMAND_LINE
+        else if (!baseline.containsAll(test.filter.includePatterns)) Verdict.LATE_FILTER
+        else null
     } catch (_: Exception) {
-        true
+        Verdict.LATE_FILTER
     } catch (_: LinkageError) {
-        true
+        Verdict.LATE_FILTER
     }
 }
