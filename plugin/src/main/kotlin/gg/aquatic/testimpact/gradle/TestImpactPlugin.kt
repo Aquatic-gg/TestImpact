@@ -8,5 +8,6 @@ import org.gradle.api.Project
  */
 public class TestImpactPlugin : Plugin<Project> {
     override fun apply(target: Project) {
+        target.extensions.create("testImpact", TestImpactExtension::class.java)
     }
 }
