@@ -317,6 +317,21 @@ class GitRepositoryTest {
     }
 
     @Test
+    fun sameSizeEditWithinTheIndexTimestampIsSeenThroughTheIndexCopy() = withRepo { repo ->
+        val t0 = FileTime.fromMillis(1_000_000_000_000L)
+        val a = repo.dir.resolve("a.txt")
+        repo.write("a.txt", "one\n")
+        Files.setLastModifiedTime(a, t0)
+        repo.commitAll("one")
+        Files.setLastModifiedTime(repo.dir.resolve(".git").resolve("index"), t0)
+        repo.write("a.txt", "two\n")
+        Files.setLastModifiedTime(a, t0)
+        val ok = okOf(read(repo))
+        assertEquals(listOf(DiffEntry(ChangeStatus.MODIFIED, "a.txt", "a.txt")), ok.entries)
+        assertContentEquals("one\n".toByteArray(), ok.before["a.txt"])
+    }
+
+    @Test
     fun autocrlfDoesNotChangeTheBeforeBlob() {
         for (autocrlf in listOf(true, false)) {
             withRepo(autocrlf = autocrlf) { repo ->
