@@ -56,7 +56,9 @@ internal object Seeds {
         } else {
             listOfNotNull(before, after)
         }
-        if (sides.isEmpty() || sides.any { !it.classesResolved }) return null
+        // A side without classes (package-info, a file of typealiases only, an emptied file) changes meaning without
+        // any class to start the walk from.
+        if (sides.isEmpty() || sides.any { !it.classesResolved || it.classes.isEmpty() }) return null
         val classes = sides.flatMap { it.classes }.distinct().sorted()
         val keys = sides.mapNotNull { sourceKey(it) }.distinct().sorted()
         return Seed(file.path, classes, keys)

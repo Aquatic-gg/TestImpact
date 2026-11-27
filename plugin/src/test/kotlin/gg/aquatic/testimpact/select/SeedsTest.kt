@@ -64,6 +64,14 @@ class SeedsTest {
     }
 
     @Test
+    fun `source file declaring no classes forces CHANGE_NOT_MAPPED`() {
+        val unchanged = modified(source("p/package-info.java"))
+        assertEquals(SelectionUnknownReason.CHANGE_NOT_MAPPED, Seeds.from(known(unchanged)).forced?.reason)
+        val emptied = ChangedFile(ChangeStatus.MODIFIED, source("a/X.kt", "a.X"), source("a/X.kt"))
+        assertEquals(SelectionUnknownReason.CHANGE_NOT_MAPPED, Seeds.from(known(emptied)).forced?.reason)
+    }
+
+    @Test
     fun `unresolved after side forces CHANGE_NOT_MAPPED`() {
         val file = ChangedFile(ChangeStatus.MODIFIED, source("a/X.kt", "a.X"), source("a/X.kt", resolved = false))
         assertEquals(SelectionUnknownReason.CHANGE_NOT_MAPPED, Seeds.from(known(file)).forced?.reason)
