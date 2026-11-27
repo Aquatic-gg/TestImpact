@@ -21,6 +21,11 @@ import java.nio.file.Path
 internal object TestSelector {
     private const val MAX_PROBLEMS = 20
 
+    /**
+     * @param input classpath roots, framework and engines of the task, already resolved.
+     * @param seeds the changed classes; forced seeds make the result unknown without any file read.
+     * @param scan reads the class files of a list of roots into a graph.
+     */
     fun select(
         input: TestTaskInput,
         seeds: SeedSet,
