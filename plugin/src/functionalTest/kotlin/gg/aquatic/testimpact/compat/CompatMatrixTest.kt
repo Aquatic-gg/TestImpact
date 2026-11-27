@@ -49,9 +49,4 @@ class CompatMatrixTest {
         val failure = assertFailsWith<IllegalStateException> { CompatMatrix.versionsFor(26, "9.0.0") }
         assertContains(failure.message.orEmpty(), "JDK 26")
     }
-
-    @Test
-    fun `newest is the highest version`() {
-        assertEquals(GradleVersion.version("9.9.2"), CompatMatrix.newest("9.0.0,9.9.2,9.8.2"))
-    }
 }

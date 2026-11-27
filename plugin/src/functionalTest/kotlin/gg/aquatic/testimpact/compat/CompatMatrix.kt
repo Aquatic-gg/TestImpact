@@ -33,6 +33,4 @@ internal object CompatMatrix {
         if (floor == null) return versions
         return versions.map { if (it < floor) floor else it }.distinct().sorted()
     }
-
-    fun newest(property: String? = System.getProperty(PROPERTY)): GradleVersion = parse(property).last()
 }

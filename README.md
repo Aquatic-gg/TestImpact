@@ -231,7 +231,7 @@ Class files are analysed once and the result is cached in `build/testimpact/clas
 ./gradlew build
 ```
 
-`./gradlew build -Ptestimpact.testJava=21` runs the tests on another JDK (17 or newer).
+`./gradlew build -Ptestimpact.testJava=21` runs the tests on another JDK (17 to 25; a newer JDK needs its Gradle floor added to `CompatMatrix` first).
 
 ## License
 

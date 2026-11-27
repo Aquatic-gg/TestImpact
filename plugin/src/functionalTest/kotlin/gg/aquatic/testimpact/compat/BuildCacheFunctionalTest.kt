@@ -40,12 +40,13 @@ class BuildCacheFunctionalTest {
         assertTrue(Files.exists(report(projectDir, "app.CalcTest")))
         assertFalse(Files.exists(report(projectDir, "app.OtherTest")))
 
-        ImpactFixture.file(projectDir, "src/main/java/app/Other.java", OTHER_CHANGED)
+        val script = Files.readString(projectDir.resolve(BUILD_SCRIPT))
+        Files.writeString(projectDir.resolve(BUILD_SCRIPT), script + WIDER_SELECTION)
         val wider = run(projectDir, "clean", "test")
         assertEquals(TaskOutcome.SUCCESS, wider.task(":test")?.outcome, wider.output)
         assertTrue(Files.exists(report(projectDir, "app.OtherTest")))
 
-        ImpactFixture.file(projectDir, "src/main/java/app/Other.java", ORIGINAL_OTHER)
+        Files.writeString(projectDir.resolve(BUILD_SCRIPT), script)
         val back = run(projectDir, "clean", "test")
         assertEquals(TaskOutcome.FROM_CACHE, back.task(":test")?.outcome, back.output)
         assertFalse(Files.exists(report(projectDir, "app.OtherTest")))
@@ -62,6 +63,21 @@ class BuildCacheFunctionalTest {
 
         assertEquals(TaskOutcome.FROM_CACHE, relocated.task(":test")?.outcome, relocated.output)
         assertTrue(Files.exists(report(otherDir, "app.CalcTest")))
+        assertFalse(Files.exists(report(otherDir, "app.OtherTest")))
+    }
+
+    @Test
+    fun `a relocated checkout with another selection runs the tests`() {
+        prepare()
+        val first = run(projectDir, "test")
+        assertEquals(TaskOutcome.SUCCESS, first.task(":test")?.outcome, first.output)
+
+        copyTree(projectDir, otherDir)
+        Files.writeString(otherDir.resolve(BUILD_SCRIPT), Files.readString(otherDir.resolve(BUILD_SCRIPT)) + WIDER_SELECTION)
+        val relocated = run(otherDir, "clean", "test")
+
+        assertEquals(TaskOutcome.SUCCESS, relocated.task(":test")?.outcome, relocated.output)
+        assertTrue(Files.exists(report(otherDir, "app.OtherTest")))
     }
 
     private fun prepare() {
@@ -93,7 +109,7 @@ class BuildCacheFunctionalTest {
     private companion object {
         val BUILD_STATE = setOf("build", ".gradle", ".kotlin")
 
-        const val ORIGINAL_OTHER = "package app;\n\npublic class Other {\n    public String name() { return \"other\"; }\n}\n"
-        const val OTHER_CHANGED = "package app;\n\npublic class Other {\n    public String name() { return \"changed\"; }\n}\n"
+        const val BUILD_SCRIPT = "build.gradle.kts"
+        const val WIDER_SELECTION = "\ntestImpact { alwaysRun.add(\"*OtherTest\") }\n"
     }
 }
