@@ -26,8 +26,16 @@ internal class ReachResult(
     }
 
     /** Shortest path to the class through which [candidate] was first reached; null for an unselected name. */
-    fun pathTo(candidate: String): ReachPath? {
-        var node = selectedAt[candidate] ?: return null
+    fun pathTo(candidate: String): ReachPath? = selectedAt[candidate]?.let(::buildPath)
+
+    /** Shortest path to any visited class; null when [name] was not visited. */
+    fun pathToClass(name: String): ReachPath? {
+        val index = classes.binarySearch(name)
+        return if (index >= 0 && parent[index] != UNVISITED) buildPath(index) else null
+    }
+
+    private fun buildPath(start: Int): ReachPath {
+        var node = start
         val edges = ArrayList<Edge>()
         while (parent[node] >= 0) {
             edges.add(Edge(classes[node], classes[parent[node]], EdgeKind.entries[kind[node].toInt()]))
