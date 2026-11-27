@@ -7,7 +7,9 @@ import gg.aquatic.testimpact.select.Seed
  * Multi-source breadth-first walk over the dependents of the seed classes. A class reached anywhere inside a
  * top-level class (nested, inner, lambda) selects that top-level class when it is a candidate. The walk is
  * index-based over the sorted class list, stops as soon as every candidate is selected, and is deterministic:
- * seeds are taken in the given order and dependents come sorted from the graph.
+ * seeds are taken in the given order, the explicit dependents of a class come sorted from the graph, followed by the
+ * classes of each constant or typealias scope it defines. A scope (everything, one package, one source file) is
+ * expanded once per walk: later definers of the same scope would only meet classes that are already visited.
  */
 internal object ReverseReach {
 
@@ -38,6 +40,13 @@ internal object ReverseReach {
             if (owner in candidates) selectedAt.putIfAbsent(owner, index)
         }
 
+        val expandedScopes = HashSet<String>()
+
+        fun visit(name: String, from: Int, edgeKind: Int) {
+            val index = classes.binarySearch(name)
+            if (index >= 0 && parent[index] == ReachResult.UNVISITED) enqueue(index, from, edgeKind, origin[from])
+        }
+
         val bySource = sourceIndex(graph)
         for ((seedIndex, seed) in seeds.withIndex()) {
             for (index in expand(graph, seed, bySource)) {
@@ -47,10 +56,11 @@ internal object ReverseReach {
 
         while (head < tail && selectedAt.size < candidates.size) {
             val current = queue[head++]
-            for (edge in graph.dependents(classes[current])) {
-                val index = classes.binarySearch(edge.from)
-                if (index < 0 || parent[index] != ReachResult.UNVISITED) continue
-                enqueue(index, current, edge.kind.ordinal, origin[current])
+            val name = classes[current]
+            for (edge in graph.explicitDependentsOf(name)) visit(edge.from, current, edge.kind.ordinal)
+            for (group in graph.scopeGroups(name)) {
+                if (!expandedScopes.add(group.kind.name + group.key)) continue
+                for (member in group.members()) visit(member, current, group.kind.ordinal)
             }
         }
         return result()

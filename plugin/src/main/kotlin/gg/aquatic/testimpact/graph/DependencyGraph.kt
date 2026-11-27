@@ -53,6 +53,40 @@ internal class DependencyGraph private constructor(private val byName: Map<Strin
         return found.map { Edge(it.key, name, it.value) }.sortedWith(compareBy({ it.from }, { it.kind }))
     }
 
+    /** Dependents of [name] that come from its own facts only, sorted by class name, lowest [EdgeKind] per pair. */
+    fun explicitDependentsOf(name: String): List<Edge> {
+        val edges = explicitDependents[name] ?: return emptyList()
+        val found = HashMap<String, EdgeKind>()
+        for (edge in edges) found.merge(edge.from, edge.kind) { a, b -> if (a <= b) a else b }
+        return found.map { Edge(it.key, name, it.value) }.sortedBy { it.from }
+    }
+
+    /** The constant and typealias scopes [name] defines, without expanding them; see [ScopeGroup]. */
+    fun scopeGroups(name: String): List<ScopeGroup> {
+        val facts = byName[name] ?: return emptyList()
+        val groups = ArrayList<ScopeGroup>(2)
+        facts.constantScope?.let { groups.add(scopeGroup(name, it, EdgeKind.CONSTANT)) }
+        facts.typeAliasScope?.let { groups.add(scopeGroup(name, it, EdgeKind.TYPEALIAS)) }
+        return groups
+    }
+
+    private fun scopeGroup(definer: String, scope: ReachScope, kind: EdgeKind): ScopeGroup {
+        val kotlinOnly = kind == EdgeKind.TYPEALIAS
+        val key = when (scope) {
+            ReachScope.ALL -> "A"
+            ReachScope.PACKAGE -> "P:" + packageOf(definer)
+            ReachScope.FILE -> "F:" + sources[definer].orEmpty() + "\u0000" + owner(definer)
+        }
+        return ScopeGroup(key, kind) {
+            val members = when (scope) {
+                ReachScope.ALL -> classes
+                ReachScope.PACKAGE -> inPackage[packageOf(definer)].orEmpty()
+                ReachScope.FILE -> sources[definer]?.let { inSource[it] }.orEmpty() + ownedBy(owner(definer))
+            }
+            if (kotlinOnly) members.filter { byName[it]?.isKotlin == true } else members
+        }
+    }
+
     /**
      * The top-level class [name] is declared in, found by following [ClassFacts.outer]; [name] itself for a
      * top-level class or an unscanned one. An outer chain that loops resolves to the smallest name of the loop.
