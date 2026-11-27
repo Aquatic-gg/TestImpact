@@ -14,7 +14,8 @@ import java.nio.file.Path
  * Reads class roots and resource roots into [SeedInputs]. Inputs are untrusted: any class, archive, link or
  * descriptor that cannot be read becomes a [ClassProblem] and the result is [SeedResult.Unknown], never partial.
  * Class roots supply classes and the resources beside them; resource roots supply resources only. Only descriptors
- * are read, other resources contribute their path. The result does not depend on the order of the roots.
+ * are read, other resources contribute their path; a path found in several roots becomes one resource holding the
+ * union of its tokens. The result does not depend on the order of the roots.
  */
 internal object SeedScanner {
     const val DEFAULT_MAX_RESOURCE_BYTES: Int = 8 * 1024 * 1024
@@ -42,8 +43,14 @@ internal object SeedScanner {
         if (problems.isNotEmpty()) {
             return SeedResult.Unknown(problems.sortedWith(compareBy({ it.location }, { it.message })))
         }
-        return SeedResult.Known(SeedInputs(classes.sortedBy { it.name }, resources.sortedBy { it.path }))
+        return SeedResult.Known(SeedInputs(classes.sortedBy { it.name }, mergeByPath(resources)))
     }
+
+    private fun mergeByPath(resources: List<ResourceFacts>): List<ResourceFacts> =
+        resources.groupBy { it.path }.toSortedMap().map { (path, same) ->
+            if (same.size == 1) same[0]
+            else ResourceFacts(path, same.flatMap { it.tokens }.distinct().sorted(), same.any { it.descriptor })
+        }
 
     private fun readClass(entry: SeedEntry, cap: Int, facts: MutableList<SeedFacts>, problems: MutableList<ClassProblem>) {
         try {

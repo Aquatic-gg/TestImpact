@@ -55,6 +55,23 @@ class SeedFactsReaderTest {
     }
 
     @Test
+    fun `array descriptor literals give the element class and other bracket shapes stay dropped`() {
+        val b = ClassBytes()
+        val self = b.classRef("p/Main")
+        b.string("[La.b.C;")
+        b.utf8("[[Lx.Y\$Z;")
+        b.utf8("[I")
+        b.utf8("[Lnodot;")
+        b.utf8("[La.b.C")
+        b.utf8("La.b.C;")
+        b.utf8("[L;")
+        b.utf8("[La.b[0];")
+        b.utf8("[La.b.C; ")
+
+        assertEquals(listOf("a.b.C", "x.Y\$Z"), SeedFactsReader.read(b.classFile(self)).literals)
+    }
+
+    @Test
     fun `literals are sorted and distinct`() {
         val b = ClassBytes()
         val self = b.classRef("p/Main")

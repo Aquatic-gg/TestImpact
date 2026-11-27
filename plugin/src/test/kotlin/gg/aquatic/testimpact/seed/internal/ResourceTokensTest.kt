@@ -55,6 +55,9 @@ class ResourceTokensTest {
         for (name in listOf("plugin.yml", "a/b/app.YAML", "x.properties", "c.json", "d.xml", "e.conf", "f.toml", "g.txt", "h.MF")) {
             assertTrue(ResourceTokens.isDescriptor(name), name)
         }
+        for (name in listOf("META-INF/app.kotlin_module", "META-INF/CERT.SF", "META-INF/CERT.RSA", "META-INF/CERT.dsa", "META-INF/CERT.EC")) {
+            assertFalse(ResourceTokens.isDescriptor(name), name)
+        }
         for (name in listOf("img.png", "data.bin", "dir.txt/blob", "noextension", "a/b.class")) {
             assertFalse(ResourceTokens.isDescriptor(name), name)
         }

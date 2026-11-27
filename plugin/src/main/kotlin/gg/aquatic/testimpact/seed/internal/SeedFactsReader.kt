@@ -40,11 +40,23 @@ internal object SeedFactsReader {
     private fun literals(pool: ConstantPool): List<String> {
         val found = TreeSet<String>()
         pool.forEachOfTag(ConstantPool.UTF8) { index ->
-            if (!pool.utf8HasShape(index, '.', FORBIDDEN_IN_LITERAL)) return@forEachOfTag
-            val text = pool.utf8(index)
+            val text = when {
+                pool.utf8HasShape(index, '.', FORBIDDEN_IN_LITERAL) -> pool.utf8(index)
+                pool.utf8HasShape(index, '.', FORBIDDEN_IN_ARRAY_LITERAL) -> arrayElementName(pool.utf8(index)) ?: return@forEachOfTag
+                else -> return@forEachOfTag
+            }
             if (text.length in MIN_LITERAL..MAX_LITERAL) found.add(text)
         }
         return found.toList()
+    }
+
+    /** `[La.b.C;` is a valid `Class.forName` argument; only exactly that shape yields `a.b.C`. */
+    private fun arrayElementName(text: String): String? {
+        val depth = text.indexOfFirst { it != '[' }
+        if (depth < 1 || text[depth] != 'L' || !text.endsWith(';') || text.length - depth < 3) return null
+        val name = text.substring(depth + 1, text.length - 1)
+        if (name.any { it in FORBIDDEN_IN_LITERAL } || '.' !in name) return null
+        return name
     }
 
     private fun callFlags(pool: ConstantPool): Int {
@@ -119,9 +131,12 @@ internal object SeedFactsReader {
     private const val MIN_LITERAL = 2
     private const val MAX_LITERAL = 1024
 
-    private val FORBIDDEN_IN_LITERAL: String = buildString {
-        append(";(<>[ ")
+    private val CONTROL: String = buildString {
         for (code in 0..31) append(code.toChar())
         append(127.toChar())
     }
+
+    private val FORBIDDEN_IN_LITERAL: String = ";(<>[ $CONTROL"
+
+    private val FORBIDDEN_IN_ARRAY_LITERAL: String = "(<> $CONTROL"
 }

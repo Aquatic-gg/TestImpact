@@ -183,6 +183,55 @@ class SeedScannerTest {
         assertEquals(listOf("p.A"), known(SeedScanner.scan(listOf(dir), emptyList())).classes.map { it.name })
     }
 
+    private fun junction(link: Path, target: Path) {
+        Assumptions.assumeTrue(System.getProperty("os.name").startsWith("Windows"), "junctions exist on Windows only")
+        val created = try {
+            ProcessBuilder("cmd", "/c", "mklink", "/J", link.toString(), target.toString())
+                .redirectErrorStream(true).start().let { it.inputStream.readAllBytes(); it.waitFor() == 0 }
+        } catch (e: IOException) {
+            false
+        }
+        Assumptions.assumeTrue(created, "the junction could not be created")
+    }
+
+    @Test
+    fun `an inner junction to a directory makes the result unknown without walking it`() {
+        val outside = writeDirectory(temp.resolve("outsideJunction"), mapOf("q/Out.class" to classFile("q/Out")))
+        val dir = writeDirectory(temp.resolve("withJunction"), mapOf("p/A.class" to classFile("p/A")))
+        junction(dir.resolve("q"), outside.resolve("q"))
+
+        val problems = unknown(SeedScanner.scan(listOf(dir), emptyList()))
+
+        assertEquals(1, problems.size)
+        assertTrue(problems[0].location.replace('\\', '/').endsWith("/q"), problems[0].location)
+    }
+
+    @Test
+    fun `a junction as the root is resolved`() {
+        val real = writeDirectory(temp.resolve("realRoot"), mapOf("p/A.class" to classFile("p/A")))
+        val root = temp.resolve("rootJunction")
+        junction(root, real)
+
+        assertEquals(listOf("p.A"), known(SeedScanner.scan(listOf(root), emptyList())).classes.map { it.name })
+    }
+
+    @Test
+    fun `the same resource in several roots is merged whatever the root order`() {
+        val one = writeJar(temp.resolve("one.jar"), mapOf("META-INF/MANIFEST.MF" to "a.One".toByteArray(), "x.bin" to byteArrayOf(1)))
+        val two = writeDirectory(temp.resolve("two"), mapOf("META-INF/MANIFEST.MF" to "b.Two a.One".toByteArray(), "x.bin" to byteArrayOf(2)))
+
+        val forward = SeedScanner.scan(listOf(one, two), emptyList())
+
+        assertEquals(forward, SeedScanner.scan(listOf(two, one), emptyList()))
+        assertEquals(
+            listOf(
+                ResourceFacts("META-INF/MANIFEST.MF", listOf("a.One", "b.Two"), true),
+                ResourceFacts("x.bin", emptyList(), false),
+            ),
+            known(forward).resources,
+        )
+    }
+
     @Test
     fun `corrupt jar, malformed class and truncated entry make the result unknown`() {
         val corrupt = temp.resolve("bad.jar")

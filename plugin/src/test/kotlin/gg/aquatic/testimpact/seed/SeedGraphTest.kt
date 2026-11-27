@@ -1,5 +1,7 @@
 package gg.aquatic.testimpact.seed
 
+import gg.aquatic.testimpact.graph.internal.classfile.ClassBytes
+import gg.aquatic.testimpact.seed.internal.SeedFactsReader
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -50,6 +52,16 @@ class SeedGraphTest {
     @Test
     fun `class name kind from a literal`() {
         val g = graph(listOf(cls("h.Holder", listOf("t.Target")), cls("t.Target")))
+        assertEquals(listOf("h.Holder" to SeedKind.CLASS_NAME), g.pairs("t.Target"))
+    }
+
+    @Test
+    fun `class name kind from the element of an array descriptor literal`() {
+        val bytes = ClassBytes()
+        val self = bytes.classRef("h/Holder")
+        bytes.string("[Lt.Target;")
+        val facts = SeedFactsReader.read(bytes.classFile(self))
+        val g = graph(listOf(facts, cls("t.Target")))
         assertEquals(listOf("h.Holder" to SeedKind.CLASS_NAME), g.pairs("t.Target"))
     }
 

@@ -7,13 +7,18 @@ internal object ResourceTokens {
     private const val MAX_TOKEN = 512
     private const val META_INF = "META-INF/"
     private val TEXT_EXTENSIONS = setOf("yml", "yaml", "properties", "json", "xml", "conf", "toml", "txt", "mf")
+    private val OPAQUE_META_INF_EXTENSIONS = setOf("kotlin_module", "sf", "rsa", "dsa", "ec")
 
-    /** A resource whose content is scanned for class and package names. */
+    /**
+     * A resource whose content is scanned for class and package names: text files and files under `META-INF/`,
+     * except Kotlin module metadata and signature files, whose names are not references.
+     */
     fun isDescriptor(path: String): Boolean {
-        if (path.startsWith(META_INF)) return true
         val dot = path.lastIndexOf('.')
         val slash = path.lastIndexOf('/')
-        return dot > slash && path.substring(dot + 1).lowercase() in TEXT_EXTENSIONS
+        val extension = if (dot > slash) path.substring(dot + 1).lowercase() else ""
+        if (path.startsWith(META_INF)) return extension !in OPAQUE_META_INF_EXTENSIONS
+        return extension in TEXT_EXTENSIONS
     }
 
     /**
