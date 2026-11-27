@@ -76,9 +76,9 @@ internal object TestTaskWiring {
         ) { task ->
             task.group = "verification"
             task.description = "Selects the classes of '$name' that the changes since the base can reach."
-            task.capture.set(
-                TestTaskCapture.of(test, project.providers, project.objects, project.gradle.gradleUserHomeDir),
-            )
+            val capture = TestTaskCapture.of(test, project.providers, project.objects, project.gradle.gradleUserHomeDir)
+            task.capture.set(capture)
+            task.dependsOn(capture.testClassesDirs, capture.classpath)
             task.usesService(classGraph)
             task.usesService(selectionInputs)
             task.classGraph.set(classGraph)

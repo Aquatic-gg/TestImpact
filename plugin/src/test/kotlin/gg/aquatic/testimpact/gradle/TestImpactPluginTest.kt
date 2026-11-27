@@ -50,6 +50,16 @@ class TestImpactPluginTest {
     }
 
     @Test
+    fun `the selection task waits for the classes it analyses`() {
+        val project = evaluated(null)
+        val select = project.tasks.getByName("testImpactSelectTest")
+
+        val names = select.taskDependencies.getDependencies(select).map { it.name }
+
+        assertTrue("compileTestJava" in names && "compileJava" in names, names.toString())
+    }
+
+    @Test
     fun `mode off in the DSL adds no task, input or action`() {
         val control = ProjectBuilder.builder().build().also {
             it.pluginManager.apply("java")

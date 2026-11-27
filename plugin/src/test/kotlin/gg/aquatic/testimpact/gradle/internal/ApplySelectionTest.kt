@@ -32,7 +32,6 @@ class ApplySelectionTest {
         apply(task, file("testimpact-selection 1\nselected\na.A\nb.B\n"))
         assertEquals(setOf("a.A", "a.A$*", "b.B", "b.B$*"), (task.filter as DefaultTestFilter).commandLineIncludePatterns)
         assertFalse(task.filter.isFailOnNoMatchingTests)
-        assertFalse(task.failOnNoDiscoveredTests.get())
     }
 
     @kotlin.test.Test

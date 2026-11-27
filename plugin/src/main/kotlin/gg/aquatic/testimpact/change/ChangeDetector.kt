@@ -98,8 +98,37 @@ internal object ChangeDetector {
             } catch (_: IllegalArgumentException) {
                 return unresolved(snapshot)
             }
-            if (verify && names.isNotEmpty() && !names.all(::compiled)) return unresolved(snapshot)
+            if (verify && names.isNotEmpty() && !names.all(::compiled) && !outsideClasspath(snapshot.path)) {
+                return unresolved(snapshot)
+            }
             return snapshot.copy(classes = names)
+        }
+
+        /**
+         * A source file of a module that contributes no class directory or jar to the classpath cannot be reached by
+         * the tests under analysis. A file of the project itself, or one whose module cannot be told, stays unresolved.
+         */
+        private fun outsideClasspath(path: String): Boolean {
+            val segments = path.split('/')
+            val src = segments.indexOf("src")
+            if (src <= 0) return false
+            val module = real(read.topLevel.resolve(segments.take(src).joinToString("/")))
+            return classOutputDirs.none { real(it).startsWith(module) }
+        }
+
+        private fun real(path: Path): Path {
+            var existing: Path? = path.toAbsolutePath().normalize()
+            val rest = ArrayDeque<Path>()
+            while (existing != null && !Files.exists(existing)) {
+                existing.fileName?.let { rest.addFirst(it) }
+                existing = existing.parent
+            }
+            val base = try {
+                existing?.toRealPath() ?: path.toAbsolutePath().normalize()
+            } catch (_: IOException) {
+                path.toAbsolutePath().normalize()
+            }
+            return rest.fold(base) { acc, part -> acc.resolve(part) }
         }
 
         private fun unresolved(snapshot: FileSnapshot): FileSnapshot = snapshot.copy(classesResolved = false)

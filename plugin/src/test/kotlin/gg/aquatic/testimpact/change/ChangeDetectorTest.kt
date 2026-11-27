@@ -271,6 +271,23 @@ class ChangeDetectorTest {
     }
 
     @Test
+    fun sourceOfAModuleOutsideTheClasspathIsNotAnObstacle() = withFeature { repo ->
+        val classes = repo.dir.resolve("own/build/classes")
+        Files.createDirectories(classes)
+        repo.write("far/src/main/java/q/Far.java", "package q;\n\npublic class Far {}\n")
+        repo.write("own/src/main/java/q/Near.java", "package q;\n\npublic class Near {}\n")
+        val detection = ChangeDetector.detect(
+            input(repo, "main").copy(classOutputDirs = listOf(classes), conventionalRoots = true),
+            repo.env,
+        )
+        val known = known(detection)
+        val far = known.file("far/src/main/java/q/Far.java").after
+        assertEquals(true, far?.classesResolved)
+        assertEquals(listOf("q.Far"), far?.classes)
+        assertEquals(false, known.file("own/src/main/java/q/Near.java").after?.classesResolved)
+    }
+
+    @Test
     fun corruptJarMakesDetectionUnknown() = withFeature { repo ->
         val jar = repo.base.resolve("broken.jar")
         Files.write(jar, "not a zip file".toByteArray())

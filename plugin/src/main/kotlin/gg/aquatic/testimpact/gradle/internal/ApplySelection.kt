@@ -13,8 +13,7 @@ import org.gradle.api.tasks.testing.Test
  * missing, unreadable or full leaves the task untouched.
  *
  * Classes whose selected name and the build script filter have nothing in common must not fail the build, so the task
- * is told not to fail for lack of matches; Gradle 9's check for no discovered tests is relaxed too while its value can
- * still change.
+ * is told not to fail for lack of matches.
  */
 internal class ApplySelection(private val selection: Provider<RegularFile>) : Action<Task> {
     override fun execute(task: Task) {
@@ -29,11 +28,5 @@ internal class ApplySelection(private val selection: Provider<RegularFile>) : Ac
         if (classes.isNullOrEmpty()) return
         test.setTestNameIncludePatterns(classes.flatMap { listOf(it, "$it$*") })
         test.filter.isFailOnNoMatchingTests = false
-        try {
-            test.failOnNoDiscoveredTests.set(false)
-        } catch (e: IllegalStateException) {
-            Logging.getLogger(ApplySelection::class.java)
-                .info("TestImpact {}: failOnNoDiscoveredTests is already final", task.path)
-        }
     }
 }
