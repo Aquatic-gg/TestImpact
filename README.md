@@ -209,8 +209,17 @@ Early development. Every Test task of a project that applies the plugin runs onl
 
 ## Requirements
 
-- Gradle 9.0 or newer
+- Gradle 9.0 or newer (9.1 or newer when Gradle itself runs on JDK 25)
 - JDK 17 or newer
+
+The tests run on JDK 17, 21 and 25 against three Gradle versions: the oldest supported one, the last release of the previous minor line and the newest stable release. The versions are listed in `gradle/libs.versions.toml`. When a new minor line is released, the newest version moves and the previous one becomes the last release of the line before it. Once a new major version is stable, the list holds the newest release of each of the last two majors. The floor moves only in a plugin minor release, with a note. Gradle 8 is not supported: the Kotlin embedded in Gradle 9.0 is the lowest the plugin's API can rely on.
+
+Behaviour on these versions:
+
+- The configuration cache is supported, and the selection is computed when the build runs, so an edit between two builds changes it even when the cache entry is reused.
+- Isolated projects are compatible.
+- The selection is part of the cache key of each `Test` task: a clean build with the same selection restores the task from the build cache, also in another checkout, and a different selection runs it.
+- `testImpactSelect<Task>` and `testImpactReport` are never up to date or cached and run on every build.
 
 ## Analysis cache
 
@@ -221,6 +230,8 @@ Class files are analysed once and the result is cached in `build/testimpact/clas
 ```
 ./gradlew build
 ```
+
+`./gradlew build -Ptestimpact.testJava=21` runs the tests on another JDK (17 or newer).
 
 ## License
 
