@@ -73,8 +73,8 @@ internal class RedListener(
     private fun finish() {
         if (!written.compareAndSet(false, true)) return
         val start = started.get() ?: return
-        val recorded = failures.toSortedSet()
-        val unknown = unknownTest.get()
+        val (recorded, leftOut) = RedStateFile.fit(failures)
+        val unknown = unknownTest.get() || leftOut
         try {
             write(start.before.finished(start.phase, recorded, unknown))
         } finally {

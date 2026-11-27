@@ -5,6 +5,7 @@ import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -80,6 +81,35 @@ class RedStateFileTest {
         val many = (1..10_000).joinToString("") { "red=c.C$it\n" }
         assertEquals(10_000, read(valid + many).red.size)
         assertTrue(read(valid + many + "red=c.Extra\n").isCorrupt())
+    }
+
+    private fun written(failures: Set<String>): Pair<RedState, Boolean> {
+        val (kept, leftOut) = RedStateFile.fit(failures)
+        val file = temp.resolve("fit.state")
+        Files.writeString(file, RedStateFile.render(RedState(true, kept, leftOut, RunPhase.FULL, RunResult.RED)))
+        return RedStateFile.read(file) to leftOut
+    }
+
+    @Test
+    fun `fit leaves out what the reader would reject`() {
+        val (state, leftOut) = written(setOf("app.CalcTest", "Login works", "", "a".repeat(1_025)))
+        assertTrue(leftOut)
+        assertEquals(setOf("app.CalcTest"), state.red)
+        assertFalse(state.isCorrupt())
+        assertFalse(written(setOf("app.CalcTest", "app.A\$B")).second)
+    }
+
+    @Test
+    fun `fit keeps the file within the count and size limits`() {
+        val countLimited = (1..10_500).map { "c.C$it" }.toSet()
+        val (byCount, countLeftOut) = written(countLimited)
+        assertTrue(countLeftOut)
+        assertEquals(10_000, byCount.red.size)
+        val sizeLimited = (1..9_000).map { "p." + "a".repeat(200) + it }.toSet()
+        val (bySize, sizeLeftOut) = written(sizeLimited)
+        assertTrue(sizeLeftOut)
+        assertFalse(bySize.isCorrupt())
+        assertTrue(bySize.red.size in 1 until 9_000)
     }
 
     @Test

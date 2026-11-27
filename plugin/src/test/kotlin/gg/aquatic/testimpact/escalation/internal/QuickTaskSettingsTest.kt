@@ -4,6 +4,7 @@ import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.testing.Test
 import org.gradle.api.tasks.testing.junit.JUnitOptions
 import org.gradle.api.tasks.testing.junitplatform.JUnitPlatformOptions
+import org.gradle.process.CommandLineArgumentProvider
 import org.gradle.testfixtures.ProjectBuilder
 import org.junit.jupiter.api.io.TempDir
 import java.nio.file.Files
@@ -37,6 +38,15 @@ class QuickTaskSettingsTest {
         assertEquals("256m", quick.maxHeapSize)
         assertEquals(3, quick.maxParallelForks)
         assertEquals(7L, quick.forkEvery)
+    }
+
+    @kotlin.test.Test
+    fun `jvm argument providers of the user task are not copied`() {
+        val (user, quick) = pair()
+        user.jvmArgumentProviders.add(CommandLineArgumentProvider { listOf("-javaagent:coverage.jar") })
+        QuickTaskSettings.copy(user, quick, emptySet())
+        assertEquals(1, user.jvmArgumentProviders.size)
+        assertTrue(quick.jvmArgumentProviders.isEmpty())
     }
 
     @kotlin.test.Test

@@ -29,8 +29,10 @@ internal data class RedState(
                 if (isRed) RedState(true, sorted(failures), unknownFailure || unknown, phase, result)
                 else RedState(true, red, unknownFailure, phase, result)
             RunPhase.PARTIAL ->
-                if (isRed) RedState(true, sorted(red + failures), unknownFailure || unknown, phase, result)
-                else copy(lastPhase = phase, lastResult = result)
+                if (isRed) {
+                    val (merged, leftOut) = RedStateFile.fit(red + failures)
+                    RedState(true, merged, unknownFailure || unknown || leftOut, phase, result)
+                } else copy(lastPhase = phase, lastResult = result)
         }
     }
 

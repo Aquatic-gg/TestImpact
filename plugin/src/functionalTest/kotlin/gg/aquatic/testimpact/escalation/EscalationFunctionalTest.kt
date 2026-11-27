@@ -156,6 +156,21 @@ class EscalationFunctionalTest {
     }
 
     @Test
+    fun `the quick task asked for by an abbreviation fails the build while the class is still red`() {
+        EscalationFixture.singleModule(projectDir)
+        EscalationFixture.calc(projectDir, 1)
+        runAndFail("-PtestImpact=full", "test")
+
+        val result = runAndFail("tIQT")
+
+        assertEquals(TaskOutcome.FAILED, result.task(":testImpactQuickTest")?.outcome, result.output)
+        assertNullTask(result, ":test")
+        val again = runAndFail("tIQT")
+        assertContains(again.output, "Reusing configuration cache")
+        assertEquals(TaskOutcome.FAILED, again.task(":testImpactQuickTest")?.outcome, again.output)
+    }
+
+    @Test
     fun `two projects under parallel and continue stop and finish independently`() {
         EscalationFixture.twoModules(projectDir)
         EscalationFixture.bug(projectDir, "a", 1)
@@ -214,7 +229,7 @@ class EscalationFunctionalTest {
 
     @Test
     fun `a test launched by name from the tooling api runs with a full run owed and leaves it owed`() {
-        EscalationFixture.singleModule(projectDir, pluginLine = "")
+        EscalationFixture.singleModule(projectDir, pluginLine = "", extra = "defaultTasks(\"build\")\n")
         EscalationFixture.calc(projectDir, 1)
         val script = ImpactFixture.initScript(scriptDir)
         val arguments = arrayOf("--init-script", script.toString(), "--no-watch-fs", "--configuration-cache")

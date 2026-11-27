@@ -6,6 +6,7 @@ import java.nio.charset.CharacterCodingException
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.TreeSet
 
 /**
  * The text form of a [RedState], also the marker other tools may read:
@@ -28,6 +29,9 @@ internal object RedStateFile {
     internal const val MAX_BYTES = 1L shl 20
     internal const val MAX_RED = 10_000
     internal const val MAX_NAME = 1_024
+
+    private const val RESERVED_BYTES = 256L
+    private const val RED_LINE_OVERHEAD = 5
 
     fun render(state: RedState): String = buildString {
         append(HEADER).append('\n')
@@ -102,6 +106,27 @@ internal object RedStateFile {
             lastPhase = phase,
             lastResult = result,
         )
+    }
+
+    /**
+     * Splits [failures] into the names [read] accepts and whether any was left out (a name that is not a plain class name,
+     * or more names than the limits allow). The caller records a left-out name as an unknown failure, so what is written
+     * never reads as [RedState.CORRUPT].
+     */
+    fun fit(failures: Set<String>): Pair<Set<String>, Boolean> {
+        val kept = TreeSet<String>()
+        var bytes = RESERVED_BYTES
+        var leftOut = false
+        for (name in failures.sorted()) {
+            val size = name.toByteArray(StandardCharsets.UTF_8).size + RED_LINE_OVERHEAD
+            if (!validName(name) || kept.size >= MAX_RED || bytes + size > MAX_BYTES) {
+                leftOut = true
+                continue
+            }
+            kept.add(name)
+            bytes += size
+        }
+        return kept to leftOut
     }
 
     private fun bool(value: String): Boolean? = when (value) {

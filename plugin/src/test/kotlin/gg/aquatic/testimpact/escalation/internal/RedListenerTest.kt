@@ -79,6 +79,21 @@ class RedListenerTest {
     }
 
     @Test
+    fun `a failure under a name the file cannot hold is written as an unknown failure`() {
+        val listener = listener(RunPhase.FULL)
+        listener.beforeSuite(root)
+        val suite = descriptor("Login works", root)
+        listener.afterTest(descriptor("Login works", suite), failed)
+        listener.afterTest(descriptor("app.CalcTest", descriptor("app.CalcTest", root)), failed)
+        listener.afterSuite(root, failed)
+        val state = stateOf()
+        assertFalse(state.isCorrupt())
+        assertEquals(setOf("app.CalcTest"), state.red)
+        assertTrue(state.unknownFailure)
+        assertTrue(warnings.isEmpty(), warnings.toString())
+    }
+
+    @Test
     fun `a nested class counts for its outer class`() {
         val listener = listener(RunPhase.PARTIAL)
         listener.beforeSuite(root)

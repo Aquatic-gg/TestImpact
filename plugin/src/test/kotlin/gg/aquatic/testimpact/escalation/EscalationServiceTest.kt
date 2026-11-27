@@ -8,6 +8,7 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -22,7 +23,7 @@ class EscalationServiceTest {
         service.quickFinished(":a:test", setOf("x.B", "x.A"), false)
         service.quickFinished(":b:test", emptySet(), true)
         assertEquals(listOf("x.A", "x.B"), service.quickFailures(":a:test").toList())
-        assertTrue(service.quickOutcome(":b:test")!!.red)
+        assertTrue(assertNotNull(service.quickOutcome(":b:test")).red)
         assertTrue(service.quickFailures(":b:test").isEmpty())
         assertNull(service.quickOutcome(":c:test"))
         assertTrue(service.quickFailures(":c:test").isEmpty())

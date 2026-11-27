@@ -37,13 +37,12 @@ internal object EscalationWiring {
         val state = project.layout.buildDirectory.file("testimpact/escalation/$name.state")
         val service = project.gradle.sharedServices.registerIfAbsent(EscalationServiceName.value, EscalationService::class.java) {}
         val userPath = project.absoluteProjectPath(name)
-        val requestedByName = project.gradle.startParameter.taskRequests.any { request ->
-            request.args.any { it == quickName || it.endsWith(":$quickName") }
-        }
+        val quickPath = project.absoluteProjectPath(quickName)
         val own = mutableSetOf<Any>(select)
         val quick = project.tasks.register(quickName, Test::class.java) { task ->
             val user = testTask.get()
             val baseline = user.filter.includePatterns.toSet()
+            task.ignoreFailures = true
             task.group = "verification"
             task.description = "Runs the red and the selected classes of '$name' before the full run."
             task.extensions.extraProperties.set(MARKER, true)
@@ -54,11 +53,14 @@ internal object EscalationWiring {
             task.outputs.upToDateWhen(NotEscalated.Never)
             task.outputs.cacheIf("TestImpact: the quick phase is no verdict", NotEscalated.Never)
             task.doFirst(RedRecorder(state, service, userPath, RunPhase.QUICK, baseline))
-            task.doFirst(QuickPhaseAction(state, selection, requestedByName))
-            task.doLast(QuickPhaseAction.Done(service, userPath, requestedByName))
+            task.doFirst(QuickPhaseAction(state, selection))
+            task.doLast(QuickPhaseAction.Done(service, userPath))
         }
         own.add(quick)
-        Escalation(state, service, quick, project.absoluteProjectPath(quickName))
+        project.gradle.taskGraph.whenReady { graph ->
+            if (graph.hasTask(quickPath) && !graph.hasTask(userPath)) quick.get().ignoreFailures = false
+        }
+        Escalation(state, service, quick, quickPath)
     } catch (e: Exception) {
         project.logger.warn(
             "TestImpact: could not add the quick task for '{}' in {}, it follows the selection only ({}: {})",
@@ -72,8 +74,7 @@ internal object EscalationWiring {
      * test launcher) selects them, and it adds the tests it names to the user's task only after the task graph is made.
      * The quick phase must not run, and fail the launch, for tests the launcher did not name.
      */
-    private fun launched(project: Project): Boolean =
-        project.gradle.startParameter.taskRequests.isEmpty() && project.defaultTasks.isEmpty()
+    private fun launched(project: Project): Boolean = project.gradle.startParameter.taskRequests.isEmpty()
 
     /** Whether [task] is a quick task of this plugin; the report leaves those out. */
     fun isQuick(task: Task): Boolean = task.extensions.extraProperties.has(MARKER)
