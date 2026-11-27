@@ -1,6 +1,10 @@
 [versions]
 kotlin = "2.4.20"
 junit = "5.14.4"
+# Gradle versions the functional tests run against: the floor, the last release of the previous minor line, the newest stable release.
+gradle-oldest = "9.0.0"
+gradle-previous = "9.8.2"
+gradle-newest = "9.9.2"
 
 [libraries]
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }

@@ -254,20 +254,6 @@ class TestImpactSelectionFunctionalTest {
         assertContains(result.output, "TestImpact :test: changed 1")
     }
 
-    @Test
-    fun `the oldest supported gradle selects like the current one`() {
-        ImpactFixture.singleModule(projectDir)
-        GitFixture.init(projectDir)
-        ImpactFixture.file(projectDir, "src/main/java/app/Calc.java", ImpactFixture.calc(2))
-
-        val result = run("test", version = "9.0")
-
-        assertEquals(TaskOutcome.SUCCESS, result.task(":test")?.outcome)
-        assertTrue(Files.exists(report("", "app.CalcTest")))
-        assertFalse(Files.exists(report("", "app.OtherTest")))
-        assertContains(result.output, "TestImpact :test: changed 1, selected 1 of 2 test classes")
-    }
-
     private fun multiModuleChanged() {
         ImpactFixture.multiModule(projectDir)
         GitFixture.init(projectDir)
