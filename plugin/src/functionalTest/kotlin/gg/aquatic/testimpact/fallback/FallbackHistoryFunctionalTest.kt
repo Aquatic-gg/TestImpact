@@ -39,6 +39,10 @@ class FallbackHistoryFunctionalTest {
         assertContains(partial.output, "selected 1 of 2 test classes")
         assertTrue(FallbackFixture.ran(projectDir, "app.CalcTest"))
         assertFalse(FallbackFixture.ran(projectDir, "app.OtherTest"))
+
+        val again = build("test")
+        assertContains(again.output, "Reusing configuration cache")
+        assertFalse(again.output.contains("full:"), again.output)
     }
 
     @Test
@@ -120,8 +124,7 @@ class FallbackHistoryFunctionalTest {
 
         val result = build("test")
 
-        assertTrue(Regex("full: (analysis-error|no-base)").containsMatchIn(result.output), result.output)
-        assertTrue(FallbackFixture.ran(projectDir, "app.OtherTest"))
+        FallbackFixture.assertFull(projectDir, result, "analysis-error", both)
     }
 
     @Test

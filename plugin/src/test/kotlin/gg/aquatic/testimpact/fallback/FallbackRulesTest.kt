@@ -33,6 +33,15 @@ class FallbackRulesTest {
     }
 
     @Test
+    fun `a catalog and a lockfile changed together force dependency-change`() {
+        val verdict = FallbackRules.forChanges(
+            known(file("gradle/libs.versions.toml", FileKind.BUILD_LOGIC), file("gradle.lockfile", FileKind.BUILD_LOGIC)),
+        )
+        assertEquals(FullRunRule.DEPENDENCY_CHANGE, verdict?.rule)
+        assertEquals("gradle.lockfile and 1 more", verdict?.detail)
+    }
+
+    @Test
     fun `a rename away from a lockfile counts through its old side`() {
         val renamed = ChangedFile(
             ChangeStatus.RENAMED,
@@ -50,6 +59,9 @@ class FallbackRulesTest {
         assertEquals(FullRunRule.TOOLCHAIN_CHANGE, ruleOf(file(".java-version", FileKind.OTHER)))
         assertEquals(FullRunRule.TOOLCHAIN_CHANGE, ruleOf(file(".tool-versions", FileKind.OTHER)))
         assertEquals(FullRunRule.TOOLCHAIN_CHANGE, ruleOf(file("mise.toml", FileKind.OTHER)))
+        assertEquals(FullRunRule.TOOLCHAIN_CHANGE, ruleOf(file("gradle/wrapper/gradle-wrapper.jar", FileKind.OTHER)))
+        assertEquals(FullRunRule.TOOLCHAIN_CHANGE, ruleOf(file("gradlew", FileKind.BUILD_LOGIC)))
+        assertEquals(FullRunRule.TOOLCHAIN_CHANGE, ruleOf(file("gradlew.bat", FileKind.BUILD_LOGIC)))
         assertEquals(
             FullRunRule.TOOLCHAIN_CHANGE,
             ruleOf(file("build.gradle.kts", FileKind.BUILD_LOGIC), file(".mise.toml", FileKind.OTHER)),

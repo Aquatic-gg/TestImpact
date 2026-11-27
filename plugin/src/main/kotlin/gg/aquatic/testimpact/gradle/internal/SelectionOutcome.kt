@@ -15,8 +15,9 @@ import gg.aquatic.testimpact.select.Selection
  * @property selection the selection before the decision; null when it did not run.
  * @property detectionMillis the part of `decision.analysisMillis` spent until the changes were known.
  * @property failure the exception that turned the decision into an analysis error, else null.
- * @property changeRule the rule that decided a full run from the change set alone, the same for every task of the
- * project; null when the decision depends on the task or on the selection.
+ * @property changeRule the rule that decided a full run from the change set and the repository, not from the
+ * history of the task, so the report compares all tasks against it; null when the decision depends on the task or on
+ * the selection. A `no-index` rule also depends on the class index of this task.
  */
 internal data class SelectionOutcome(
     val decision: TaskSelection,

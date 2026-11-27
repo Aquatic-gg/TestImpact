@@ -122,9 +122,9 @@ A task runs in full, and the console line says `full: <id>`, in these cases. The
 | `analysis-error` | the analysis failed, for example the repository could not be read |
 | `no-base` | the changes cannot be compared with a base commit: not a repository, no git, a shallow clone, no commit, a detached HEAD without `baseRef`, an unknown `baseRef` |
 | `dependency-change` | a version catalog (`*.versions.toml`), a lock file (`*.lockfile`, such as `gradle.lockfile`) or a `verification-metadata.xml` changed, also on the old side of a rename |
-| `toolchain-change` | `gradle/wrapper/gradle-wrapper.properties`, `gradle/gradle-daemon-jvm.properties`, `.java-version`, `.tool-versions`, `.sdkmanrc`, `mise.toml` or `.mise.toml` changed, or the Java launcher of the test task differs from the one of the last full run |
+| `toolchain-change` | `gradle/wrapper/gradle-wrapper.properties`, `gradle/wrapper/gradle-wrapper.jar`, `gradlew`, `gradlew.bat`, `gradle/gradle-daemon-jvm.properties`, `.java-version`, `.tool-versions`, `.sdkmanrc`, `mise.toml` or `.mise.toml` changed, or the Java launcher of the test task differs from the one of the last full run |
 | `build-logic` | a build script, `buildSrc`, `build-logic` or another file of the build logic changed |
-| `unknown-file-type` | a changed file inside a `src/<set>/` tree is not Java, Kotlin or a resource, for example `.proto` |
+| `unknown-file-type` | a changed file inside a `src/<set>/` tree is not Java, Kotlin or a resource, for example `.proto`, or a `.java`, `.kt`, `.groovy` or `.scala` file lies outside every source root |
 | `resource-change` | a resource file of the task's project changed |
 | `no-index` | a changed source file resolves to no class, or a class file or archive could not be read into the class graph |
 | `first-run` | no earlier full run of this task is recorded |
@@ -142,7 +142,7 @@ Changes to documentation and other files outside every `src/<set>/` tree and out
 
 After a green full run that the plugin decided, it writes `build/testimpact/history/<task>.properties` in the build directory of the project. It holds the Java launcher of the task. The next build selects only when the marker exists; a task without one, such as a new test suite, runs in full with `first-run` while the other tasks of the project still select. A subset run, a failed run, a `--tests` run and a run served from the build cache or up to date do not write it, and a damaged marker counts as no history.
 
-`clean` removes the marker, so the next build runs in full. On CI the marker is only there when `build/testimpact/history` is restored from a cache; without it, every build starts with `first-run`.
+`clean` removes the marker. The next build then stays `first-run` until the test task really executes; with the build cache, a run restored from cache writes no marker, so every build after a `clean` is `first-run` until one run actually executes the tests. On CI the marker is only there when `build/testimpact/history` is restored from a cache; without it, every build starts with `first-run`.
 
 The launcher is read from the toolchain of the test task. When it differs from the recorded one, the task runs in full with `toolchain-change`. If the launcher cannot be determined, the check is skipped.
 

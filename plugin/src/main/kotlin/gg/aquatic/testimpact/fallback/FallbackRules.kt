@@ -14,8 +14,9 @@ internal object FallbackRules {
 
     /**
      * @property detail what to tell the user, naming the first path that triggered the rule.
-     * @property changeWide whether the rule comes from the change set alone, so it is the same for every task of the
-     * project; the history rules depend on the task and are not.
+     * @property changeWide whether the rule comes from the change set and the repository alone, not from the history of
+     * a task. The report compares all tasks of a project against it; a task whose class index is missing can still
+     * differ, because [FullRunRule.NO_INDEX] also depends on that task's index.
      */
     data class Verdict(val rule: FullRunRule, val detail: String, val changeWide: Boolean)
 
@@ -28,8 +29,12 @@ internal object FallbackRules {
         FullRunRule.NO_INDEX,
     )
 
-    private val TOOLCHAIN_PATHS = listOf("gradle/wrapper/gradle-wrapper.properties", "gradle/gradle-daemon-jvm.properties")
-    private val TOOLCHAIN_NAMES = setOf(".java-version", ".tool-versions", ".sdkmanrc", "mise.toml", ".mise.toml")
+    private val TOOLCHAIN_PATHS = listOf(
+        "gradle/wrapper/gradle-wrapper.properties",
+        "gradle/wrapper/gradle-wrapper.jar",
+        "gradle/gradle-daemon-jvm.properties",
+    )
+    private val TOOLCHAIN_NAMES = setOf(".java-version", ".tool-versions", ".sdkmanrc", "mise.toml", ".mise.toml", "gradlew", "gradlew.bat")
     private val SOURCE_EXTENSIONS = setOf("java", "kt", "groovy", "scala")
 
     fun beforeSelection(detection: ChangeDetection, facts: FallbackFacts): Verdict? =
