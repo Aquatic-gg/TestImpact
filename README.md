@@ -35,6 +35,10 @@ Early development. The plugin applies, but it selects nothing yet, so every test
 - Gradle 9.0 or newer
 - JDK 17 or newer
 
+## Analysis cache
+
+Class files are analysed once and the result is cached in `build/testimpact/class-cache` under the build's settings directory, keyed by the content of each class file. A cache written by another plugin version, or a damaged file, is rebuilt without a warning. A cache file unused for 7 days is deleted. To clear the cache, delete that directory; a `clean` task of the root project does not necessarily remove it.
+
 ## Build
 
 ```
