@@ -1,5 +1,6 @@
 package gg.aquatic.testimpact.select
 
+import org.gradle.testkit.runner.GradleRunner
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -13,6 +14,16 @@ internal object MultiModuleFixture {
     private const val PROBE = PROBE_ID
 
     val modules = listOf("a", "b", "c", "d", "e", "f")
+
+    /** A runner with the plugin under test and the probe plugin on its classpath. */
+    fun runner(projectDir: Path): GradleRunner {
+        val base = GradleRunner.create().withProjectDir(projectDir.toFile()).withPluginClasspath()
+        val probeClasses = Path.of(SelectionProbePlugin::class.java.protectionDomain.codeSource.location.toURI()).toFile()
+        val descriptor = "META-INF/gradle-plugins/$PROBE_ID.properties"
+        val descriptorUrl = checkNotNull(SelectionProbePlugin::class.java.classLoader.getResource(descriptor)) { descriptor }
+        val probeResources = Path.of(descriptorUrl.toURI()).parent.parent.parent.toFile()
+        return base.withPluginClasspath(base.pluginClasspath + probeClasses + probeResources)
+    }
 
     fun write(root: Path) {
         file(root, "settings.gradle.kts", settings())

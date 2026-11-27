@@ -1,7 +1,6 @@
 package gg.aquatic.testimpact.select
 
 import org.gradle.testkit.runner.BuildResult
-import org.gradle.testkit.runner.GradleRunner
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.TestInstance
@@ -30,13 +29,7 @@ class SelectionFunctionalTest {
     }
 
     private fun run(seeds: String, vararg extra: String): BuildResult {
-        val base = GradleRunner.create().withProjectDir(projectDir.toFile()).withPluginClasspath()
-        val probeClasses = Path.of(SelectionProbePlugin::class.java.protectionDomain.codeSource.location.toURI()).toFile()
-        val descriptor = "META-INF/gradle-plugins/${MultiModuleFixture.PROBE_ID}.properties"
-        val descriptorUrl = checkNotNull(SelectionProbePlugin::class.java.classLoader.getResource(descriptor)) { descriptor }
-        val probeResources = Path.of(descriptorUrl.toURI()).parent.parent.parent.toFile()
-        return base
-            .withPluginClasspath(base.pluginClasspath + probeClasses + probeResources)
+        return MultiModuleFixture.runner(projectDir)
             .withArguments(
                 "selectionProbe", "-PimpactSeeds=$seeds", "--configuration-cache", "--warning-mode=fail",
                 "--no-watch-fs", "--stacktrace", *extra,

@@ -17,12 +17,12 @@ class TestImpactPluginTest {
     }
 
     @Test
-    fun `applying the plugin adds no tasks`() {
+    fun `applying the plugin adds only the report task`() {
         val project = ProjectBuilder.builder().build()
         val before = project.tasks.names.toSet()
 
         project.pluginManager.apply("gg.aquatic.testimpact")
 
-        assertEquals(before, project.tasks.names.toSet())
+        assertEquals(before + "testImpactReport", project.tasks.names.toSet())
     }
 }
