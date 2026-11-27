@@ -50,7 +50,7 @@ internal object EscalationWiring {
             QuickTaskSettings.copy(user, task, own)
             task.usesService(service)
             task.dependsOn(select)
-            task.onlyIf(QuickPhaseSpec.REASON, QuickPhaseSpec(state, selection, mode == TestImpactMode.AUTO, userTests, baseline))
+            task.onlyIf(QuickPhaseSpec.REASON, QuickPhaseSpec(state, selection, mode == TestImpactMode.AUTO, userTests || launched(project), baseline))
             task.outputs.upToDateWhen(NotEscalated.Never)
             task.outputs.cacheIf("TestImpact: the quick phase is no verdict", NotEscalated.Never)
             task.doFirst(RedRecorder(state, service, userPath, RunPhase.QUICK, baseline))
@@ -66,6 +66,14 @@ internal object EscalationWiring {
         )
         null
     }
+
+    /**
+     * A build that names no task and has no default task still runs Test tasks when a launcher (an IDE, the Tooling API's
+     * test launcher) selects them, and it adds the tests it names to the user's task only after the task graph is made.
+     * The quick phase must not run, and fail the launch, for tests the launcher did not name.
+     */
+    private fun launched(project: Project): Boolean =
+        project.gradle.startParameter.taskRequests.isEmpty() && project.defaultTasks.isEmpty()
 
     /** Whether [task] is a quick task of this plugin; the report leaves those out. */
     fun isQuick(task: Task): Boolean = task.extensions.extraProperties.has(MARKER)
