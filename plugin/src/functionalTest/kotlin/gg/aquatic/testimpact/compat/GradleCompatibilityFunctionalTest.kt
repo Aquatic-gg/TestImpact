@@ -1,5 +1,6 @@
 package gg.aquatic.testimpact.compat
 
+import gg.aquatic.testimpact.fallback.FallbackFixture
 import gg.aquatic.testimpact.gradle.GitFixture
 import gg.aquatic.testimpact.gradle.ImpactFixture
 import org.gradle.testkit.runner.BuildResult
@@ -27,6 +28,7 @@ class GradleCompatibilityFunctionalTest {
     fun `configuration cache is reused and the selection follows the tree on Gradle`(version: String) {
         ImpactFixture.singleModule(projectDir)
         GitFixture.init(projectDir)
+        FallbackFixture.primeHistory(projectDir)
         ImpactFixture.file(projectDir, "src/main/java/app/Calc.java", ImpactFixture.calc(2))
         val selection = projectDir.resolve("build/testimpact/selection/test.sel")
 
@@ -61,6 +63,7 @@ class GradleCompatibilityFunctionalTest {
     fun `isolated projects with several modules on the newest Gradle`() {
         ImpactFixture.multiModule(projectDir)
         GitFixture.init(projectDir)
+        listOf("a", "b", "c", "k", "e").forEach { FallbackFixture.primeHistory(projectDir, it) }
         ImpactFixture.file(projectDir, "a/src/main/java/a/Core.java", ImpactFixture.core(2))
         val newest = CompatMatrix.versionsFor(Runtime.version().feature()).last().version
         val isolated = "-Dorg.gradle.unsafe.isolated-projects=true"

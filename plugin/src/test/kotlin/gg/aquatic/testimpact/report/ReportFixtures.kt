@@ -5,6 +5,7 @@ import gg.aquatic.testimpact.change.ChangeStatus
 import gg.aquatic.testimpact.change.ChangedFile
 import gg.aquatic.testimpact.change.FileKind
 import gg.aquatic.testimpact.change.FileSnapshot
+import gg.aquatic.testimpact.fallback.FallbackRules
 import gg.aquatic.testimpact.gradle.internal.SelectionDecision
 import gg.aquatic.testimpact.gradle.internal.SelectionOutcome
 import gg.aquatic.testimpact.gradle.internal.SelectionSettings
@@ -71,13 +72,19 @@ internal object ReportFixtures {
         scrubber: PathScrubber = this.scrubber,
         project: String = ":c",
         settings: SelectionSettings = SelectionSettings.of(null, 60, 12, emptySet(), emptySet()),
+        changeRule: FallbackRules.Verdict? = null,
     ): ImpactReport {
         val first = selections.minOfOrNull { it.taskPath }
         val outcomes = selections.map { selection ->
             val detected = if (selection.taskPath == first) detectionMs else 0L
             val millis = detected + (selectionMs[selection.taskPath] ?: 0L)
-            val decision = SelectionDecision.decide(selection, detection, settings, TestImpactMode.AUTO, false, millis)
-            SelectionOutcome(decision, detection, seeds, selection, detected)
+            if (changeRule != null) {
+                val decision = SelectionDecision.fallback(selection.taskPath, TestImpactMode.AUTO, changeRule, detection, millis)
+                SelectionOutcome(decision, detection, detectionMillis = detected, changeRule = changeRule.rule)
+            } else {
+                val decision = SelectionDecision.decide(selection, detection, settings, TestImpactMode.AUTO, false, millis)
+                SelectionOutcome(decision, detection, seeds, selection, detected)
+            }
         }
         return ReportBuilder.build(project, outcomes, scrubber)
     }

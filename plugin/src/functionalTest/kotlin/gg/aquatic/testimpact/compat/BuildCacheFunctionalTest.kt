@@ -1,5 +1,6 @@
 package gg.aquatic.testimpact.compat
 
+import gg.aquatic.testimpact.fallback.FallbackFixture
 import gg.aquatic.testimpact.gradle.GitFixture
 import gg.aquatic.testimpact.gradle.ImpactFixture
 import org.gradle.testkit.runner.BuildResult
@@ -35,19 +36,19 @@ class BuildCacheFunctionalTest {
         val first = run(projectDir, "test")
         assertEquals(TaskOutcome.SUCCESS, first.task(":test")?.outcome, first.output)
 
-        val restored = run(projectDir, "clean", "test")
+        val restored = cleanTest(projectDir)
         assertEquals(TaskOutcome.FROM_CACHE, restored.task(":test")?.outcome, restored.output)
         assertTrue(Files.exists(report(projectDir, "app.CalcTest")))
         assertFalse(Files.exists(report(projectDir, "app.OtherTest")))
 
         val script = Files.readString(projectDir.resolve(BUILD_SCRIPT))
         Files.writeString(projectDir.resolve(BUILD_SCRIPT), script + WIDER_SELECTION)
-        val wider = run(projectDir, "clean", "test")
+        val wider = cleanTest(projectDir)
         assertEquals(TaskOutcome.SUCCESS, wider.task(":test")?.outcome, wider.output)
         assertTrue(Files.exists(report(projectDir, "app.OtherTest")))
 
         Files.writeString(projectDir.resolve(BUILD_SCRIPT), script)
-        val back = run(projectDir, "clean", "test")
+        val back = cleanTest(projectDir)
         assertEquals(TaskOutcome.FROM_CACHE, back.task(":test")?.outcome, back.output)
         assertFalse(Files.exists(report(projectDir, "app.OtherTest")))
     }
@@ -59,7 +60,7 @@ class BuildCacheFunctionalTest {
         assertEquals(TaskOutcome.SUCCESS, first.task(":test")?.outcome, first.output)
 
         copyTree(projectDir, otherDir)
-        val relocated = run(otherDir, "clean", "test")
+        val relocated = cleanTest(otherDir)
 
         assertEquals(TaskOutcome.FROM_CACHE, relocated.task(":test")?.outcome, relocated.output)
         assertTrue(Files.exists(report(otherDir, "app.CalcTest")))
@@ -74,7 +75,7 @@ class BuildCacheFunctionalTest {
 
         copyTree(projectDir, otherDir)
         Files.writeString(otherDir.resolve(BUILD_SCRIPT), Files.readString(otherDir.resolve(BUILD_SCRIPT)) + WIDER_SELECTION)
-        val relocated = run(otherDir, "clean", "test")
+        val relocated = cleanTest(otherDir)
 
         assertEquals(TaskOutcome.SUCCESS, relocated.task(":test")?.outcome, relocated.output)
         assertTrue(Files.exists(report(otherDir, "app.OtherTest")))
@@ -84,7 +85,15 @@ class BuildCacheFunctionalTest {
         val cache = cacheDir.toString().replace('\\', '/')
         ImpactFixture.singleModule(projectDir, settingsExtra = "buildCache { local { directory = file(\"$cache\") } }\n")
         GitFixture.init(projectDir)
+        FallbackFixture.primeHistory(projectDir)
         ImpactFixture.file(projectDir, "src/main/java/app/Calc.java", ImpactFixture.calc(2))
+    }
+
+    /** `clean` removes the history marker, so it is written again before the test run. */
+    private fun cleanTest(dir: Path): BuildResult {
+        run(dir, "clean")
+        FallbackFixture.primeHistory(dir)
+        return run(dir, "test")
     }
 
     private fun copyTree(from: Path, to: Path) {

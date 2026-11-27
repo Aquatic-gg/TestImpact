@@ -18,22 +18,22 @@ internal object ReportBuilder {
     /**
      * The changes are the ones of the first task (by path) that read them: every task of a project sees the same files,
      * only whether a file maps to classes can differ, and that shows in the task's rule. [ImpactReport.forced] is set
-     * only when every task that read the changes is forced by the same reason.
+     * only when every task that read the changes is decided by the same change rule.
      */
     fun build(project: String, outcomes: List<SelectionOutcome>, scrubber: PathScrubber): ImpactReport {
         val sorted = outcomes.sortedBy { it.decision.taskPath }
         val tasks = sorted.map { task(it, scrubber) }
         val known = tasks.filter { it.result == ImpactReport.Result.SELECTED }
         val first = sorted.firstOrNull { it.detection != null }
-        val forced = first?.seeds?.forced?.takeIf { shown ->
-            sorted.all { outcome -> outcome.seeds.let { it == null || it.forced?.reason == shown.reason } }
+        val forced = first?.changeRule?.takeIf { shown ->
+            sorted.all { outcome -> outcome.detection == null || outcome.changeRule == shown }
         }
         val detectionMs = sorted.sumOf { it.detectionMillis }
         val selection = tasks.sumOf { it.durationMs }
         return ImpactReport(
             project = project,
             changes = changes(first?.detection, outcomes.isEmpty(), scrubber),
-            forced = forced?.let { ReportRules.rule(it.reason, scrubber.scrub(it.detail)) },
+            forced = forced?.let { ReportRules.decisionRule(it.id, scrubber.scrub(first?.decision?.fullDetail.orEmpty())) },
             tasks = tasks,
             totals = ImpactReport.Totals(
                 tasks = tasks.size,
@@ -102,11 +102,7 @@ internal object ReportBuilder {
                 durationMs = durationMs,
             )
         }
-        val rule = if (selection is Selection.Unknown) {
-            ReportRules.rule(selection.reason, scrubber.scrub(selection.detail))
-        } else {
-            ReportRules.decisionRule(decision.fullRule.orEmpty(), scrubber.scrub(decision.fullDetail.orEmpty()))
-        }
+        val rule = ReportRules.decisionRule(decision.fullRule.orEmpty(), scrubber.scrub(decision.fullDetail.orEmpty()))
         return ImpactReport.Task(
             path = decision.taskPath,
             result = ImpactReport.Result.FULL,

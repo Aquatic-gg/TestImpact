@@ -1,12 +1,14 @@
 package gg.aquatic.testimpact.gradle.internal
 
 import gg.aquatic.testimpact.change.ChangeDetection
+import gg.aquatic.testimpact.fallback.FallbackRules
+import gg.aquatic.testimpact.fallback.FullRunRule
+import gg.aquatic.testimpact.fallback.WideChange
 import gg.aquatic.testimpact.gradle.SelectedEntry
 import gg.aquatic.testimpact.gradle.TaskOutcome
 import gg.aquatic.testimpact.gradle.TaskSelection
 import gg.aquatic.testimpact.select.SelectedTest
 import gg.aquatic.testimpact.select.Selection
-import java.util.Locale
 
 /** Turns what selection found into the decision for one Test task: run the selected classes, nothing, or all. */
 internal object SelectionDecision {
@@ -19,17 +21,26 @@ internal object SelectionDecision {
     fun shortCircuit(taskPath: String, mode: TestImpactMode, userTests: Boolean, millis: Long): TaskSelection? =
         when {
             mode == TestImpactMode.FULL ->
-                full(taskPath, mode, TaskSelection.RULE_MODE_FULL, "mode is full", millis)
+                full(taskPath, mode, FullRunRule.MODE_FULL.id, "mode is full", millis)
             mode == TestImpactMode.OFF ->
-                full(taskPath, mode, TaskSelection.RULE_MODE_OFF, "mode is off", millis)
+                full(taskPath, mode, FullRunRule.MODE_OFF.id, "mode is off", millis)
             userTests ->
-                full(taskPath, mode, TaskSelection.RULE_USER_TESTS, "the build was given --tests", millis)
+                full(taskPath, mode, FullRunRule.USER_TESTS.id, "the build was given --tests", millis)
             else -> null
         }
 
     /** A full run caused by a failure inside the plugin; the build itself carries on. */
     fun pluginError(taskPath: String, mode: TestImpactMode, detail: String, millis: Long): TaskSelection =
-        full(taskPath, mode, TaskSelection.RULE_PLUGIN_ERROR, detail, millis)
+        full(taskPath, mode, FullRunRule.ANALYSIS_ERROR.id, "the selection failed: $detail", millis)
+
+    /** A full run that a fallback rule decided before the selection; the changed files stay known. */
+    fun fallback(
+        taskPath: String,
+        mode: TestImpactMode,
+        verdict: FallbackRules.Verdict,
+        detection: ChangeDetection,
+        millis: Long,
+    ): TaskSelection = withChanges(full(taskPath, mode, verdict.rule.id, verdict.detail, millis), detection)
 
     /**
      * @param userTests whether the user restricted the run with `--tests`
@@ -47,7 +58,7 @@ internal object SelectionDecision {
         shortCircuit(taskPath, mode, userTests, millis)?.let { return withChanges(it, detection) }
         return when (selection) {
             is Selection.Unknown -> withChanges(
-                full(taskPath, mode, kebab(selection.reason.name), selection.detail, millis),
+                full(taskPath, mode, FullRunRule.forSelection(selection.reason).id, selection.detail, millis),
                 detection,
             )
             is Selection.Known -> decideKnown(selection, detection, settings, mode, millis)
@@ -76,15 +87,14 @@ internal object SelectionDecision {
             fullDetail = null,
             analysisMillis = millis,
         )
-        val wide = candidates >= settings.wideChangeMinClasses &&
-            tests.size.toLong() * 100 > settings.wideChangePercent.toLong() * candidates
+        val wide = WideChange.exceeds(tests.size, candidates, settings.wideChangePercent, settings.wideChangeMinClasses)
         return when {
             wide -> base.asFull(
-                TaskSelection.RULE_WIDE_CHANGE,
+                FullRunRule.WIDE_CHANGE.id,
                 "${tests.size} of $candidates test classes are affected, above ${settings.wideChangePercent}%",
             )
             tests.isNotEmpty() && tests.none { it.recognised } -> base.asFull(
-                TaskSelection.RULE_NOT_RECOGNISED,
+                FullRunRule.NOT_RECOGNISED.id,
                 "none of the ${tests.size} selected classes is recognised as a test",
             )
             tests.isEmpty() -> base.copy(outcome = TaskOutcome.EMPTY)
@@ -125,6 +135,4 @@ internal object SelectionDecision {
         edges = test.path.edges.map { "${it.from}>${it.to}:${it.kind.name}" },
         seedKinds = test.path.seedKinds.entries.sortedBy { it.key }.map { "${it.key}:${it.value.name}" },
     )
-
-    private fun kebab(name: String): String = name.lowercase(Locale.ROOT).replace('_', '-')
 }

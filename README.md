@@ -40,18 +40,18 @@ That is all the setup. Apply the plugin in every project whose tests should be s
 
 ```
 TestImpact :app:test: changed 3, selected 5 of 120 test classes
-TestImpact :app:integrationTest: changed ?, selected all test classes, full: changes-unknown: <detail>
+TestImpact :app:integrationTest: changed ?, selected all test classes, full: no-base: <detail>
 ```
 
 - Changes are the files that differ from the merge base with `baseRef`, committed or not, plus untracked files. A tree without changes selects nothing, so the tasks are skipped, unless `alwaysRun` names classes.
 - A task whose selection is empty is skipped, the build still succeeds.
-- Anything uncertain runs the whole task and the line says why after `full:`. A failure inside the plugin does the same.
+- Anything uncertain runs the whole task and the line says why after `full:`; the ids are listed under Full-run rules. A failure inside the plugin does the same.
 - The selection is an input of the `Test` task, so a partial run is never reused as the result of a full one, from the up-to-date check or the build cache.
 - `--tests` on the command line wins: the task runs what `--tests` names and nothing is selected away. `--tests` given for any task of the build makes every `Test` task of the build run in full, because the plugin cannot tell which task the option is meant for. A `filter { }` in the build script stays in force together with the selection; classes it excludes are not run and an empty intersection does not fail the build.
 - A test the IDE or the Tooling API launches (`includeTest`, a single test run from an IDE) is treated like `--tests`: the task keeps the tests that run names and the selection does not touch it. The plugin cannot see that request when the task graph is built, so the line for the task may still show a selection; set `TEST_IMPACT=off` to switch the plugin off for such runs. A filter added after the configuration, other than through `--tests`, makes the `Test` task run in full (the filter's tests, not the selection), and the build logs one `TestImpact <task>: the test filter was changed after configuration` line for it. `--tests` is not such a filter and logs no such line.
 - `-x testImpactSelect<Task>` leaves the selection out: that `Test` task then runs in full, also when an earlier build left a selection behind.
 - Git is read once per build and repository, not once per `Test` task, and the class files of a root are scanned once however many tasks have it on their classpath.
-- On a detached HEAD, which is what a pull-request checkout of most CI systems is, the changes are measured only when `baseRef` is set and resolves. Without `baseRef` the whole task runs (`changes-unknown`), because the default candidates are guesses that suit a checked-out branch.
+- On a detached HEAD, which is what a pull-request checkout of most CI systems is, the changes are measured only when `baseRef` is set and resolves. Without `baseRef` the whole task runs (`no-base`), because the default candidates are guesses that suit a checked-out branch.
 - Changes in other modules are found through the conventional layout `src/<set>/java`, `src/<set>/kotlin` and `src/<set>/resources`. A changed source file whose classes the task's class graph does not know, such as a test of another module, does not affect that task. A Java or Kotlin file outside every known layout runs the full task, and so does a resource change in a resource folder of the task's own project or a change of build logic. A resource folder that another module adds outside the conventional layout (for example `srcDir("config")` in a library) is not known to the task; see Known gaps. Build logic is a build script, `buildSrc`, `build-logic` and `gradle` next to the settings file, and any file of a nested build below it, that is a directory with its own settings file such as an included build.
 - Only `Test` tasks that exist after the project is evaluated are wired. A task created later runs as without the plugin.
 
@@ -102,18 +102,53 @@ For every test task the plugin reads the compiled classes on the task's runtime 
 - Links that bytecode cannot show are followed too: a class name in a string constant or a scanned resource, a `META-INF/services` file, and the classes of a listed `dynamicPackages` package. The record of a selected test in the result file of the task (`build/testimpact/selection/<task>.txt`) names the kind of link it went through; the console line does not print it.
 - Test classes matching `alwaysRun` are selected in every automatic run, also when nothing changed.
 - JUnit 4, JUnit Jupiter, the Vintage engine and Kotest are supported. A global extension or listener registration, or a Kotest project or package config (also through a base class), that a change reaches selects every test of the task.
-- The result is "unknown", and the whole task runs, when the change cannot be mapped to classes (build logic, resources, unresolved sources, a changed source file that declares no classes such as `package-info.java`, unknown change detection), when the framework is TestNG or another runner, when a JUnit Platform engine is missing or not one of the supported ones, or when a class file or service file cannot be read.
+- The result is "unknown", and the whole task runs, when the change cannot be mapped to classes (build logic, resources, unresolved sources, a changed source file that declares no classes such as `package-info.java`, unknown change detection), when the framework is TestNG or another runner, when a JUnit Platform engine is missing or not one of the supported ones, or when a class file or service file cannot be read. Each of these cases has an id, see Full-run rules.
 
 Known gaps:
 
+- A non-JVM file outside every `src/<set>/` tree and outside the build logic, for example a data file in a non-conventional directory next to `src`, is not seen as a change that matters.
+- With `ignoreFailures = true` on a test task, a failed full run still counts as a green one and writes the history marker.
 - Constants and inline function bodies of a project that is only a `compileOnly` dependency are folded into the class using them, so a change to them can be missed.
 - A resource folder another module adds outside the conventional layout (for example `srcDir("config")` in `:lib`) is not classified: a change there does not select the tests of `:app` that read the file from the `lib` jar, in the build and in the report alike.
 - Project outputs that a build step transforms into the Gradle user home are not scanned.
 - Frameworks that find tests by scanning the classpath, such as Cucumber or custom runners, are not understood.
 
+## Full-run rules
+
+A task runs in full, and the console line says `full: <id>`, in these cases. The report shows the same id in upper case with underscores.
+
+| Id | Runs in full when |
+| --- | --- |
+| `analysis-error` | the analysis failed, for example the repository could not be read |
+| `no-base` | the changes cannot be compared with a base commit: not a repository, no git, a shallow clone, no commit, a detached HEAD without `baseRef`, an unknown `baseRef` |
+| `dependency-change` | a version catalog (`*.versions.toml`), a lock file (`*.lockfile`, such as `gradle.lockfile`) or a `verification-metadata.xml` changed, also on the old side of a rename |
+| `toolchain-change` | `gradle/wrapper/gradle-wrapper.properties`, `gradle/wrapper/gradle-wrapper.jar`, `gradlew`, `gradlew.bat`, `gradle/gradle-daemon-jvm.properties`, `.java-version`, `.tool-versions`, `.sdkmanrc`, `mise.toml` or `.mise.toml` changed, or the Java launcher of the test task differs from the one of the last full run |
+| `build-logic` | a build script, `buildSrc`, `build-logic` or another file of the build logic changed |
+| `unknown-file-type` | a changed file inside a `src/<set>/` tree is not Java, Kotlin or a resource, for example `.proto`, or a `.java`, `.kt`, `.groovy` or `.scala` file lies outside every source root |
+| `resource-change` | a resource file of the task's project changed |
+| `no-index` | a changed source file resolves to no class, or a class file or archive could not be read into the class graph |
+| `first-run` | no earlier full run of this task is recorded |
+| `wide-change` | the change reaches more than `wideChangePercent` of the test classes and at least `wideChangeMinClasses` |
+| `not-recognised` | no selected class is recognised as a test class |
+| `unsupported-framework` | the test framework is not supported |
+| `unknown-engine` | a JUnit Platform engine is missing or not supported |
+| `mode-full` | `mode` is `full` |
+| `mode-off` | `mode` is `off`, the plugin leaves the task as it is |
+| `user-tests` | the build was given `--tests` |
+
+Changes to documentation and other files outside every `src/<set>/` tree and outside the build logic, such as `README.md`, do not trigger a rule. A file in a source root added by the build, for example a generated source directory, is treated like any other source file.
+
+### History marker
+
+After a green full run that the plugin decided, it writes `build/testimpact/history/<task>.properties` in the build directory of the project. It holds the Java launcher of the task. The next build selects only when the marker exists; a task without one, such as a new test suite, runs in full with `first-run` while the other tasks of the project still select. A subset run, a failed run, a `--tests` run and a run served from the build cache or up to date do not write it, and a damaged marker counts as no history.
+
+`clean` removes the marker, so the next build is `first-run` until the tests really execute; a run restored from the build cache writes none. On CI the marker is only there when `build/testimpact/history` is restored from a cache; without it, every build starts with `first-run`.
+
+The launcher is read from the toolchain of the test task. When it differs from the recorded one, the task runs in full with `toolchain-change`. If the launcher cannot be determined, the check is skipped.
+
 ## Report
 
-`testImpactReport` shows what would be selected for the current changes, and why. For every Test task of its project it runs, at execution time, the same decision as the task's `testImpactSelect<Task>`: the change detection against the task's own source roots, the selection, `mode`, `--tests` and the wide-change rule, with the settings of the `testImpact` block. It writes the result and runs no test.
+`testImpactReport` shows what would be selected for the current changes, and why. For every Test task of its project it runs, at execution time, the same decision as the task's `testImpactSelect<Task>`: the change detection against the task's own source roots, the selection, `mode`, `--tests`, the wide-change rule and the fallback rules, with the settings of the `testImpact` block. It also reads the history marker of each task, so a project without one is reported as `FIRST_RUN`. It writes the result and runs no test.
 
 ```
 ./gradlew testImpactReport
@@ -123,7 +158,7 @@ Known gaps:
 
 - `--base <ref>` compares with that git ref instead of the `baseRef` of the `testImpact` block, or the default bases when that is not set. It is checked like `baseRef` (at most 255 characters, no whitespace or control characters, no leading `-`, no `..` at either end), and an invalid ref fails the task. The report applies the same `alwaysRun` and `dynamicPackages` rules and the same resource links as the selection of a build; in `report.txt` a hop through such a link is named by its seed kind (for example `SERVICE`), in `report.json` by `path[].seed`.
 - `--explain <class>` prints, for each Test task of the project, the chain from the changed file to the class, the rule that forced a full run, or that the class is not selected. A nested class is explained by its top-level class. An invalid class name fails the task.
-- `changes` are the files the first task (by path) read; every task of the project reads the same files. `forced` is set when every task that read them is forced to a full run by the same rule. When no task read the changes, because the project has no Test task or `mode` or `--tests` decided every task first, `changes.state` is `unknown` with the reason `NOT_ANALYSED`. In mode `off` each task is reported as a full run with the rule `MODE_OFF`.
+- `changes` are the files the first task (by path) read; every task of the project reads the same files. `forced` is set when every task that read them is forced to a full run by the same rule decided from the change set; a rule that does not depend on the changes, such as `FIRST_RUN`, leaves it unset. When no task read the changes, because the project has no Test task or `mode` or `--tests` decided every task first, `changes.state` is `unknown` with the reason `NOT_ANALYSED`. In mode `off` each task is reported as a full run with the rule `MODE_OFF`.
 - The files are `build/reports/testimpact/report.json` and `report.txt` of the project. The report lists only what the selection returns: a class that is not selected is not listed, so `--explain` says "not selected" for a class that no change reaches and for a name that is not a test class of the task.
 - All paths are relative to the repository. Absolute paths in free text are shown as `<root>` (the settings directory), `<gradle-user-home>` and `<home>`.
 - The report is deterministic: two runs on the same tree give the same `report.json` except the `durationsMs` values.
@@ -199,7 +234,7 @@ durationsMs.selection | number | milliseconds
 durationsMs.total | number | milliseconds
 ```
 
-Reason codes of `forced.reason` and `tasks[].rule.reason`: `CHANGES_UNKNOWN`, `CHANGE_NOT_MAPPED`, `UNSUPPORTED_FRAMEWORK`, `UNKNOWN_ENGINE`, `GRAPH_UNKNOWN`, `ANALYSIS_ERROR`. `tasks[].rule.reason` can also be a rule of the decision after the selection: `WIDE_CHANGE`, `NOT_RECOGNISED`, `MODE_FULL`, `MODE_OFF`, `USER_TESTS`, `PLUGIN_ERROR`. Codes of `changes.reason`: `NOT_A_REPOSITORY`, `GIT_UNAVAILABLE`, `GIT_FAILED`, `NO_HEAD_COMMIT`, `DETACHED_HEAD`, `SHALLOW_CLONE`, `BASE_REF_NOT_FOUND`, `NO_MERGE_BASE`, `ANALYSIS_ERROR`, `NOT_ANALYSED`.
+Reason codes of `forced.reason` and `tasks[].rule.reason` are the ids of the Full-run rules in upper case with underscores: `ANALYSIS_ERROR`, `NO_BASE`, `DEPENDENCY_CHANGE`, `TOOLCHAIN_CHANGE`, `BUILD_LOGIC`, `UNKNOWN_FILE_TYPE`, `RESOURCE_CHANGE`, `NO_INDEX`, `FIRST_RUN`, `WIDE_CHANGE`, `NOT_RECOGNISED`, `UNSUPPORTED_FRAMEWORK`, `UNKNOWN_ENGINE`, `MODE_FULL`, `MODE_OFF`, `USER_TESTS`. `forced` is set when every task is forced by the same rule decided from the change set. Codes of `changes.reason`: `NOT_A_REPOSITORY`, `GIT_UNAVAILABLE`, `GIT_FAILED`, `NO_HEAD_COMMIT`, `DETACHED_HEAD`, `SHALLOW_CLONE`, `BASE_REF_NOT_FOUND`, `NO_MERGE_BASE`, `ANALYSIS_ERROR`, `NOT_ANALYSED`.
 
 New fields and new codes may appear without a new version: ignore fields you do not know and treat a code you do not know as a full run. Removing or renaming a field, or changing what it means, raises `schemaVersion`.
 

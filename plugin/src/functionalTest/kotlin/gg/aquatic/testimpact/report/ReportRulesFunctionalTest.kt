@@ -1,5 +1,6 @@
 package gg.aquatic.testimpact.report
 
+import gg.aquatic.testimpact.fallback.FallbackFixture
 import gg.aquatic.testimpact.gradle.GitFixture
 import gg.aquatic.testimpact.gradle.ImpactFixture
 import groovy.json.JsonSlurper
@@ -45,6 +46,7 @@ class ReportRulesFunctionalTest {
     fun `a new test class in another module does not force the dependant to a full run`() {
         ImpactFixture.multiModule(projectDir)
         GitFixture.init(projectDir)
+        listOf("a", "b", "c", "k", "e").forEach { FallbackFixture.primeHistory(projectDir, it) }
         ImpactFixture.file(projectDir, "a/src/test/java/a/NewTest.java", ImpactFixture.test("NewTest", "new Core().value();"))
 
         val result = report(":c:testImpactReport", ":c:testImpactSelectTest")
@@ -64,6 +66,7 @@ class ReportRulesFunctionalTest {
     fun `a wide change is a full run in the report and in the selection`() {
         ImpactFixture.singleModule(projectDir, extra = "testImpact {\n    wideChangePercent.set(1)\n    wideChangeMinClasses.set(0)\n}")
         GitFixture.init(projectDir)
+        FallbackFixture.primeHistory(projectDir)
         ImpactFixture.file(projectDir, "src/main/java/app/Calc.java", ImpactFixture.calc(2))
 
         val result = report("testImpactReport", "testImpactSelectTest")
@@ -81,6 +84,7 @@ class ReportRulesFunctionalTest {
     fun `the extension's base ref is used, --base overrides it and an invalid one fails like in the build`() {
         ImpactFixture.singleModule(projectDir, extra = "testImpact { baseRef.set(\"main\") }")
         GitFixture.init(projectDir)
+        FallbackFixture.primeHistory(projectDir)
         GitFixture.git(projectDir, "branch", "other")
         ImpactFixture.file(projectDir, "src/main/java/app/Calc.java", ImpactFixture.calc(2))
 
@@ -109,6 +113,7 @@ class ReportRulesFunctionalTest {
             ImpactFixture.test("LoaderTest", "new Loader().hashCode();"),
         )
         GitFixture.init(projectDir)
+        FallbackFixture.primeHistory(projectDir)
         ImpactFixture.file(projectDir, "src/main/java/com/example/plugins/Plugin.java", plugin(2))
 
         report("testImpactReport")
@@ -137,6 +142,7 @@ class ReportRulesFunctionalTest {
             ImpactFixture.test("OtherTest", "Svc.class.getName(); new Other().name();"),
         )
         GitFixture.init(projectDir)
+        FallbackFixture.primeHistory(projectDir)
         ImpactFixture.file(projectDir, "src/main/java/app/Impl.java", impl(2))
 
         GradleRunner.create()

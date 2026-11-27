@@ -1,5 +1,6 @@
 package gg.aquatic.testimpact.report
 
+import gg.aquatic.testimpact.fallback.FallbackFixture
 import groovy.json.JsonSlurper
 import org.gradle.testkit.runner.GradleRunner
 import org.junit.jupiter.api.AfterEach
@@ -32,6 +33,7 @@ class IncludedBuildReportFunctionalTest {
         git("add", "-f", "conventions/build/classes/java/main/conv/Conv.class")
         git("-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false", "commit", "-m", "initial")
         git("checkout", "-b", "feature")
+        FallbackFixture.primeHistory(projectDir)
     }
 
     @AfterEach
@@ -53,7 +55,7 @@ class IncludedBuildReportFunctionalTest {
         val report = JsonSlurper().parseText(Files.readString(file)) as Map<String, Any?>
         @Suppress("UNCHECKED_CAST")
         val forced = assertNotNull(report["forced"]) as Map<String, Any?>
-        assertEquals("CHANGE_NOT_MAPPED", forced["reason"])
+        assertEquals("BUILD_LOGIC", forced["reason"])
         @Suppress("UNCHECKED_CAST")
         val task = (report["tasks"] as List<Map<String, Any?>>).single { it["path"] == ":test" }
         assertEquals("full", task["result"])

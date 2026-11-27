@@ -1,6 +1,8 @@
 package gg.aquatic.testimpact.gradle.internal
 
 import gg.aquatic.testimpact.change.DetectionInput
+import gg.aquatic.testimpact.fallback.FallbackCapture
+import gg.aquatic.testimpact.fallback.FallbackRules
 import gg.aquatic.testimpact.gradle.ClassGraphService
 import gg.aquatic.testimpact.gradle.SelectionInputsService
 import gg.aquatic.testimpact.gradle.TaskSelection
@@ -21,7 +23,8 @@ import java.util.concurrent.Callable
 /**
  * The one decision path of a Test task, shared by its selection task and by `testImpactReport`, so the report never
  * answers differently from the build: change detection on the task's own source roots, the selection, then the
- * decision with `mode` and the wide-change rule.
+ * decision with `mode` and the wide-change rule. The fallback rules (an untrusted change set, a file the plugin cannot
+ * map, a task without history) decide right after change detection and skip the selection.
  *
  * Captured at configuration time; it holds no project or task field, so it is a configuration cache value. The file
  * collections are resolved when the cache entry is stored.
@@ -35,12 +38,13 @@ internal class SelectionRun private constructor(
     private val sourceRoots: FileCollection,
     private val ownSourceRoots: FileCollection,
     private val resourceRoots: FileCollection,
+    private val fallback: FallbackCapture,
 ) {
 
     val taskPath: String get() = capture.taskPath
 
     /**
-     * Never throws an [Exception]: a failure becomes a `plugin-error` decision that carries it in
+     * Never throws an [Exception]: a failure becomes an `analysis-error` decision that carries it in
      * [SelectionOutcome.failure]. Errors are not caught.
      *
      * @param userTests whether the build restricts the run with `--tests`.
@@ -86,6 +90,15 @@ internal class SelectionRun private constructor(
             ),
         )
         val detectionMillis = millisSince(started)
+        FallbackRules.beforeSelection(detection, fallback.facts())?.let { verdict ->
+            val decision = SelectionDecision.fallback(taskPath, mode, verdict, detection, millisSince(started))
+            return SelectionOutcome(
+                decision,
+                detection,
+                detectionMillis = detectionMillis,
+                changeRule = verdict.rule.takeIf { verdict.changeWide },
+            )
+        }
         val seeds = Seeds.from(detection)
         val selection = TestSelector.select(input, seeds, classGraph::graph, settings.rules) { roots ->
             inputs.seeds(roots, resources)
@@ -135,6 +148,7 @@ internal class SelectionRun private constructor(
                 objects.fileCollection().from(Callable { sourceSets?.flatMap(::sources).orEmpty() }),
                 objects.fileCollection().from(own),
                 objects.fileCollection().from(Callable { sourceSets?.flatMap(::resources).orEmpty() }),
+                FallbackCapture.of(project, test),
             )
         }
 

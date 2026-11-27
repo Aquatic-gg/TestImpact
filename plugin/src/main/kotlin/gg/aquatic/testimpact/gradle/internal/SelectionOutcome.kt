@@ -1,6 +1,7 @@
 package gg.aquatic.testimpact.gradle.internal
 
 import gg.aquatic.testimpact.change.ChangeDetection
+import gg.aquatic.testimpact.fallback.FullRunRule
 import gg.aquatic.testimpact.gradle.TaskSelection
 import gg.aquatic.testimpact.select.SeedSet
 import gg.aquatic.testimpact.select.Selection
@@ -13,7 +14,10 @@ import gg.aquatic.testimpact.select.Selection
  * @property seeds the seeds of [detection], null with it.
  * @property selection the selection before the decision; null when it did not run.
  * @property detectionMillis the part of `decision.analysisMillis` spent until the changes were known.
- * @property failure the exception that turned the decision into a plugin error, else null.
+ * @property failure the exception that turned the decision into an analysis error, else null.
+ * @property changeRule the rule that decided a full run from the change set and the repository, not from the
+ * history of the task, so the report compares all tasks against it; null when the decision depends on the task or on
+ * the selection. A `no-index` rule also depends on the class index of this task.
  */
 internal data class SelectionOutcome(
     val decision: TaskSelection,
@@ -22,4 +26,5 @@ internal data class SelectionOutcome(
     val selection: Selection? = null,
     val detectionMillis: Long = 0,
     val failure: Exception? = null,
+    val changeRule: FullRunRule? = null,
 )

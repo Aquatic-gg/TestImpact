@@ -2,6 +2,8 @@ package gg.aquatic.testimpact.report
 
 import gg.aquatic.testimpact.change.ChangeDetection
 import gg.aquatic.testimpact.change.UnknownReason
+import gg.aquatic.testimpact.fallback.FallbackRules
+import gg.aquatic.testimpact.fallback.FullRunRule
 import gg.aquatic.testimpact.gradle.internal.SelectionDecision
 import gg.aquatic.testimpact.gradle.internal.SelectionOutcome
 import gg.aquatic.testimpact.gradle.internal.SelectionSettings
@@ -9,7 +11,6 @@ import gg.aquatic.testimpact.gradle.internal.TestImpactMode
 import gg.aquatic.testimpact.graph.Edge
 import gg.aquatic.testimpact.graph.EdgeKind
 import gg.aquatic.testimpact.seed.SeedKind
-import gg.aquatic.testimpact.select.Forced
 import gg.aquatic.testimpact.select.ReachPath
 import gg.aquatic.testimpact.select.SeedSet
 import gg.aquatic.testimpact.select.SelectedTest
@@ -81,18 +82,22 @@ class ReportBuilderTest {
             val rule = assertNotNull(task.rule)
             assertTrue(rule.text.isNotBlank())
             assertEquals("detail", rule.detail)
-            assertTrue(task.path.endsWith(rule.reason))
+            val reason = SelectionUnknownReason.valueOf(task.path.substringAfterLast(':'))
+            val decided = FullRunRule.forSelection(reason)
+            assertEquals(decided.id.uppercase().replace('-', '_'), rule.reason)
+            assertEquals(decided.text, rule.text)
         }
     }
 
     @Test
-    fun `forced rule is copied and scrubbed`() {
+    fun `forced rule comes from the change rule and is scrubbed`() {
         val scrubber = PathScrubber(listOf("/r/proj" to PathScrubber.ROOT))
-        val seeds = SeedSet(emptyList(), Forced(SelectionUnknownReason.CHANGE_NOT_MAPPED, "resource change at /r/proj/a.properties"))
+        val verdict = FallbackRules.Verdict(FullRunRule.RESOURCE_CHANGE, "resource change at /r/proj/a.properties", true)
 
-        val forced = assertNotNull(build(emptyTask, seeds = seeds, scrubber = scrubber).forced)
+        val forced = assertNotNull(ReportFixtures.report(emptyTask, changeRule = verdict, scrubber = scrubber).forced)
 
-        assertEquals("CHANGE_NOT_MAPPED", forced.reason)
+        assertEquals("RESOURCE_CHANGE", forced.reason)
+        assertEquals(FullRunRule.RESOURCE_CHANGE.text, forced.text)
         assertEquals("resource change at <root>/a.properties", forced.detail)
     }
 
@@ -211,24 +216,21 @@ class ReportBuilderTest {
 
     @Test
     fun `forced is shown only when every task that read the changes is forced alike`() {
-        val forced = SeedSet(emptyList(), Forced(SelectionUnknownReason.CHANGE_NOT_MAPPED, "x.properties"))
+        val verdict = FallbackRules.Verdict(FullRunRule.BUILD_LOGIC, "build.gradle.kts", true)
         val detection = ReportFixtures.changedCore()
         val settings = SelectionSettings.of(null, 60, 12, emptySet(), emptySet())
-        fun outcome(path: String, seeds: SeedSet): SelectionOutcome {
-            val selection = seeds.forced?.let { Selection.Unknown(path, it.reason, it.detail) }
-                ?: ReportFixtures.known(path, emptyList())
+        fun forcedOutcome(path: String): SelectionOutcome =
+            SelectionOutcome(SelectionDecision.fallback(path, TestImpactMode.AUTO, verdict, detection, 0), detection, changeRule = verdict.rule)
+        fun selectedOutcome(path: String): SelectionOutcome {
+            val selection = ReportFixtures.known(path, emptyList())
             val decision = SelectionDecision.decide(selection, detection, settings, TestImpactMode.AUTO, false, 0)
-            return SelectionOutcome(decision, detection, seeds, selection)
+            return SelectionOutcome(decision, detection, SeedSet(emptyList()), selection)
         }
 
-        val alike = ReportBuilder.build(":c", listOf(outcome(":c:a", forced), outcome(":c:b", forced)), ReportFixtures.scrubber)
-        val mixed = ReportBuilder.build(
-            ":c",
-            listOf(outcome(":c:a", forced), outcome(":c:b", SeedSet(emptyList()))),
-            ReportFixtures.scrubber,
-        )
+        val alike = ReportBuilder.build(":c", listOf(forcedOutcome(":c:a"), forcedOutcome(":c:b")), ReportFixtures.scrubber)
+        val mixed = ReportBuilder.build(":c", listOf(forcedOutcome(":c:a"), selectedOutcome(":c:b")), ReportFixtures.scrubber)
 
-        assertEquals("CHANGE_NOT_MAPPED", alike.forced?.reason)
+        assertEquals("BUILD_LOGIC", alike.forced?.reason)
         assertNull(mixed.forced)
         assertEquals(ImpactReport.Result.SELECTED, mixed.tasks.single { it.path == ":c:b" }.result)
     }
