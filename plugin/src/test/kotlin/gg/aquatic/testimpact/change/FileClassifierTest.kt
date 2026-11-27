@@ -33,6 +33,21 @@ class FileClassifierTest {
     }
 
     @Test
+    fun `build logic roots below a nested settings directory win over its source root`() {
+        val nested = FileClassifier(
+            sourceRoots = listOf("sub", "sub/src/main/kotlin"),
+            resourceRoots = emptyList(),
+            buildLogicRoots = listOf("sub/buildSrc", "sub/build-logic", "sub/gradle", "sub/conventions"),
+        )
+
+        listOf(
+            "sub/buildSrc/src/main/kotlin/A.kt", "sub/build-logic/src/main/kotlin/B.kt",
+            "sub/gradle/libs.versions.toml", "sub/conventions/src/main/kotlin/C.kt",
+        ).forEach { assertEquals(FileKind.BUILD_LOGIC, nested.classify(it).kind, it) }
+        assertEquals(FileKind.SOURCE, nested.classify("sub/src/main/kotlin/D.kt").kind)
+    }
+
+    @Test
     fun `a source root beats the build logic folder rules`() {
         val snapshot = classifier.classify("plugin/src/main/kotlin/com/acme/gradle/Plugin.kt")
         assertEquals(FileKind.SOURCE, snapshot.kind)
