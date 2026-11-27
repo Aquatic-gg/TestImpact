@@ -70,9 +70,11 @@ internal object EscalationWiring {
     }
 
     /**
-     * A build that names no task and has no default task still runs Test tasks when a launcher (an IDE, the Tooling API's
-     * test launcher) selects them, and it adds the tests it names to the user's task only after the task graph is made.
-     * The quick phase must not run, and fail the launch, for tests the launcher did not name.
+     * A build that names no task still runs Test tasks when a launcher (an IDE, the Tooling API's test launcher) selects
+     * them, and it adds the tests it names to the user's task only after the task graph is made. The quick phase must not
+     * run, and fail the launch, for tests the launcher did not name. Gradle adds `defaultTasks` to the request list only
+     * after configuration, so a plain `./gradlew` that falls back to a default task looks the same at configuration time
+     * and skips the quick phase too; its full run still happens.
      */
     private fun launched(project: Project): Boolean = project.gradle.startParameter.taskRequests.isEmpty()
 
