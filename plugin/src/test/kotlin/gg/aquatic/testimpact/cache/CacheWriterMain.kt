@@ -27,12 +27,20 @@ internal object CacheWriterMain {
         awaitGo(go)
         repeat(rounds) { round ->
             val stamp = CacheStamp(CacheStamp.FORMAT_VERSION, if (round % 2 == 0) "a" else "b")
-            val result = ClassGraphCache(cacheDir, stamp).scan(listOf(corpus))
+            val result = ClassGraphCache(cacheDir, stamp, log = ::failOnRejection).scan(listOf(corpus))
             val count = (result as? ClassGraphResult.Known)?.graph?.classes?.size
             if (count != expected) {
                 System.err.println("round $round: expected $expected classes, got $count ($result)")
                 exitProcess(1)
             }
+        }
+    }
+
+    /** The other process alternates the plugin version, so only that rejection is expected; a torn or damaged read is not. */
+    private fun failOnRejection(message: String) {
+        if (message.contains(" ignored: ") && !message.contains("plugin version")) {
+            System.err.println("rejected cache file: $message")
+            exitProcess(3)
         }
     }
 

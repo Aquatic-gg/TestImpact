@@ -57,6 +57,16 @@ internal class CacheFilesTest {
     }
 
     @Test
+    fun `an oversize file is ignored and logged`() {
+        val big = dir.resolve("big.bin")
+        java.io.RandomAccessFile(big.toFile(), "rw").use { it.setLength(CacheFiles.MAX_FILE_BYTES + 1) }
+        val messages = ArrayList<String>()
+        assertNull(CacheFiles.read(big, messages::add))
+        assertEquals(1, messages.size)
+        assertTrue("larger than" in messages.single())
+    }
+
+    @Test
     fun `housekeeping removes stale temp and cache files only`() {
         val now = Instant.now()
         fun file(name: String, age: Duration): Path =

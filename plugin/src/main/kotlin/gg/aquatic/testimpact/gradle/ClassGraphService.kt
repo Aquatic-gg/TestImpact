@@ -7,9 +7,7 @@ import org.gradle.api.logging.Logging
 import org.gradle.api.services.BuildService
 import org.gradle.api.services.BuildServiceParameters
 import java.nio.file.Path
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.ExecutionException
-import java.util.concurrent.FutureTask
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Scans class roots once per build. Parallel Test tasks asking for the same set of roots share one result, and
@@ -22,29 +20,30 @@ internal abstract class ClassGraphService : BuildService<ClassGraphService.Param
         val cacheDirectory: DirectoryProperty
     }
 
-    private val results = ConcurrentHashMap<List<String>, FutureTask<ClassGraphResult>>()
+    init {
+        created.incrementAndGet()
+    }
 
     private val cache: ClassGraphCache by lazy {
         val logger = Logging.getLogger(ClassGraphService::class.java)
         ClassGraphCache(parameters.cacheDirectory.get().asFile.toPath()) { message -> logger.info(message) }
     }
 
+    private val results = OncePerKey<List<String>, ClassGraphResult> { key -> cache.scan(key.map(Path::of)) }
+
     internal val memoizedRootSets: Int get() = results.size
 
     fun graph(roots: List<Path>): ClassGraphResult {
-        val normalized = roots.map { it.toAbsolutePath().normalize() }
-        val key = normalized.map(Path::toString).distinct().sorted()
-        val created = FutureTask { cache.scan(normalized) }
-        val task = results.putIfAbsent(key, created) ?: created.also { it.run() }
-        try {
-            return task.get()
-        } catch (e: ExecutionException) {
-            results.remove(key, task)
-            throw e.cause ?: e
-        }
+        val key = roots.map { it.toAbsolutePath().normalize().toString() }.distinct().sorted()
+        return results.get(key)
     }
 
     override fun close() {
         results.clear()
+    }
+
+    internal companion object {
+        /** Instances created so far; lets a test check that applying the plugin does not start the service. */
+        val created = AtomicInteger()
     }
 }

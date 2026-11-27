@@ -65,9 +65,8 @@ internal class CacheCodecTest {
         out.write("TIAC".toByteArray())
         out.writeInt(stamp.formatVersion)
         for (text in listOf(stamp.pluginVersion, root)) {
-            val raw = text.toByteArray()
-            out.writeInt(raw.size)
-            out.write(raw)
+            out.writeInt(text.length * 2)
+            out.writeChars(text)
         }
     }
 
@@ -121,8 +120,8 @@ internal class CacheCodecTest {
             DataOutputStream(it).apply {
                 header(this)
                 writeInt(1)
-                writeInt(1)
-                write("a".toByteArray())
+                writeInt(2)
+                writeChars("a")
                 writeInt(1)
                 write(ByteArray(ContentKey.BYTES))
                 writeInt(5)
@@ -137,6 +136,32 @@ internal class CacheCodecTest {
         fun fields(type: Class<*>) = type.declaredFields.count { !Modifier.isStatic(it.modifiers) }
         assertEquals(11, fields(ClassFacts::class.java), "ClassFacts changed: extend CacheCodec and bump FORMAT_VERSION")
         assertEquals(4, fields(ConstantField::class.java), "ConstantField changed: extend CacheCodec and bump FORMAT_VERSION")
-        assertEquals(3, ReachScope.entries.size, "ReachScope changed: extend CacheCodec and bump FORMAT_VERSION")
+        assertEquals(
+            listOf("FILE", "PACKAGE", "ALL"),
+            ReachScope.entries.map { it.name },
+            "ReachScope changed: ordinals are stored, extend CacheCodec and bump FORMAT_VERSION",
+        )
+    }
+
+    @Test
+    fun `strings with unpaired surrogates survive`() {
+        val values = listOf("\uD800", "a\uDC00b", "\uDC00\uD800", "ok 😀 é中", "")
+        val entries = LinkedHashMap<ContentKey, ClassFacts>()
+        values.forEachIndexed { i, value ->
+            entries[key("s$i")] = ClassFacts(
+                "p.S$i", 0, null, emptyList(), null, emptyList(), emptyList(), null,
+                listOf(ConstantField("C", "Ljava/lang/String;", value, ReachScope.entries.first())), false, null,
+            )
+        }
+        val decoded = assertIs<Decoded.Entries>(decode(CacheCodec.encode(stamp, root, entries)))
+        assertEquals(entries, decoded.entries)
+    }
+
+    @Test
+    fun `an odd string length is rejected`() {
+        val odd = ByteArrayOutputStream().also {
+            DataOutputStream(it).apply { header(this); writeInt(1); writeInt(3); write(ByteArray(3)) }
+        }.toByteArray()
+        assertRejected(decode(sealed(odd)), "string length")
     }
 }

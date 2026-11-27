@@ -15,8 +15,8 @@ import java.util.zip.CRC32C
  * Binary layout of one root's cache file: magic, format version, plugin version, root path, a deduplicated string
  * table, the entries (content key, then the facts with strings as table indexes, enums as ordinals), and a CRC32C
  * of everything before it. The file is untrusted: [decode] verifies length and checksum first and then bounds every
- * count, index and ordinal against what is left of the file, so a damaged or hostile file is rejected and never
- * allocates more than its own size. Every field of `ClassFacts` and `ConstantField` is written; a unit test fails
+ * count, index and ordinal against what is left of the file, so a damaged or hostile file is rejected. Decoding
+ * allocates a small multiple of the file's size (strings and fact lists), which [CacheFiles.MAX_FILE_BYTES] bounds. Every field of `ClassFacts` and `ConstantField` is written; a unit test fails
  * when one is added without extending this codec.
  */
 internal object CacheCodec {
@@ -180,16 +180,18 @@ internal object CacheCodec {
 
     private fun readString(buffer: ByteBuffer): String {
         val length = buffer.getInt()
-        if (length < 0 || length > buffer.remaining()) throw CorruptCacheException("string length $length")
-        val raw = ByteArray(length)
-        buffer.get(raw)
-        return String(raw, Charsets.UTF_8)
+        if (length < 0 || length > buffer.remaining() || length % Char.SIZE_BYTES != 0) {
+            throw CorruptCacheException("string length $length")
+        }
+        val chars = CharArray(length / Char.SIZE_BYTES)
+        for (i in chars.indices) chars[i] = buffer.getChar()
+        return String(chars)
     }
 
+    /** Strings are stored as raw UTF-16 code units: constants may hold unpaired surrogates, which UTF-8 cannot carry. */
     private fun writeString(out: DataOutputStream, value: String) {
-        val raw = value.toByteArray(Charsets.UTF_8)
-        out.writeInt(raw.size)
-        out.write(raw)
+        out.writeInt(value.length * Char.SIZE_BYTES)
+        out.writeChars(value)
     }
 
     private fun writeIndexes(out: DataOutputStream, values: List<String>, index: (String?) -> Int) {

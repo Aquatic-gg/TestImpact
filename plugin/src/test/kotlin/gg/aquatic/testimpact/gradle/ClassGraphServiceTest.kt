@@ -2,6 +2,7 @@ package gg.aquatic.testimpact.gradle
 
 import gg.aquatic.testimpact.cache.CacheCorpus
 import gg.aquatic.testimpact.graph.ClassGraphResult
+import gg.aquatic.testimpact.graph.ClassGraphScanner
 import org.gradle.api.provider.Provider
 import org.gradle.api.services.BuildServiceRegistration
 import org.gradle.testfixtures.ProjectBuilder
@@ -79,6 +80,44 @@ class ClassGraphServiceTest {
         val single = service.graph(listOf(corpus))
         assertNotSame(both, single)
         assertEquals(2, service.memoizedRootSets)
+    }
+
+    @Test
+    fun `duplicate roots give the facts of the single root`() {
+        val service = service()
+        val corpus = CacheCorpus.create(temp)
+        val expected = assertIs<ClassGraphResult.Known>(ClassGraphScanner.scan(listOf(corpus))).graph
+        val duplicated = assertIs<ClassGraphResult.Known>(service.graph(listOf(corpus, corpus))).graph
+        val single = assertIs<ClassGraphResult.Known>(service.graph(listOf(corpus))).graph
+        assertEquals(1, service.memoizedRootSets)
+        for (graph in listOf(duplicated, single)) {
+            assertEquals(expected.classes, graph.classes)
+            for (name in expected.classes) assertEquals(expected.facts(name), graph.facts(name))
+        }
+    }
+
+    @Test
+    fun `applying the plugin does not create the service`() {
+        val before = ClassGraphService.created.get()
+        val project = ProjectBuilder.builder().withProjectDir(temp.resolve("lazy").also(Files::createDirectories).toFile()).build()
+        project.plugins.apply(TestImpactPlugin::class.java)
+        assertEquals(before, ClassGraphService.created.get())
+    }
+
+    @Test
+    fun `applied from a child project the cache lives under the settings directory`() {
+        val rootDir = temp.resolve("root").also(Files::createDirectories)
+        val root = ProjectBuilder.builder().withProjectDir(rootDir.toFile()).build()
+        val child = ProjectBuilder.builder().withName("child").withParent(root)
+            .withProjectDir(rootDir.resolve("child").also(Files::createDirectories).toFile()).build()
+        child.plugins.apply(TestImpactPlugin::class.java)
+        val registration = child.gradle.sharedServices.registrations.getByName("testImpactClassGraph")
+        @Suppress("UNCHECKED_CAST")
+        val params = (registration as BuildServiceRegistration<ClassGraphService, ClassGraphService.Params>).parameters
+        assertEquals(
+            rootDir.resolve("build/testimpact/class-cache").toAbsolutePath().normalize(),
+            params.cacheDirectory.get().asFile.toPath().toAbsolutePath().normalize(),
+        )
     }
 
     @Test

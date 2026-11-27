@@ -13,7 +13,7 @@ import java.util.concurrent.ThreadLocalRandom
 
 /** File handling of the cache directory: whole-file reads, atomic writes and removal of stale files. */
 internal object CacheFiles {
-    const val MAX_FILE_BYTES: Long = 512L * 1024 * 1024
+    const val MAX_FILE_BYTES: Long = 64L * 1024 * 1024
     const val CACHE_SUFFIX: String = ".bin"
     const val TEMP_SUFFIX: String = ".tmp"
 
