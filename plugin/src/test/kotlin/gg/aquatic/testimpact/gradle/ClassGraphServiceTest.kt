@@ -121,10 +121,10 @@ class ClassGraphServiceTest {
         val registration = child.gradle.sharedServices.registrations.getByName("testImpactClassGraph")
         @Suppress("UNCHECKED_CAST")
         val params = (registration as BuildServiceRegistration<ClassGraphService, ClassGraphService.Params>).parameters
-        assertEquals(
-            rootDir.resolve("build/testimpact/class-cache").toAbsolutePath().normalize(),
-            params.cacheDirectory.get().asFile.toPath().toAbsolutePath().normalize(),
-        )
+        // real paths: a CI temp directory may be reported by its short (8.3) name on Windows
+        val expected = Files.createDirectories(rootDir.resolve("build/testimpact/class-cache")).toRealPath()
+        val actual = Files.createDirectories(params.cacheDirectory.get().asFile.toPath()).toRealPath()
+        assertEquals(expected, actual)
     }
 
     @Test
