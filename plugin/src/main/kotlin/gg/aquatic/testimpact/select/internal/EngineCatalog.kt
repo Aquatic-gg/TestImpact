@@ -19,7 +19,7 @@ internal object EngineCatalog {
         "org.junit.platform.launcher.LauncherInterceptor",
     )
 
-    private val kotestConfigs = setOf(
+    val kotestGlobalSupertypes: Set<String> = setOf(
         "io.kotest.core.config.AbstractProjectConfig",
         "io.kotest.core.config.AbstractPackageConfig",
     )
@@ -27,8 +27,6 @@ internal object EngineCatalog {
 
     fun isSupportedEngine(engine: String): Boolean =
         engine == JUPITER || engine == VINTAGE || engine.startsWith(KOTEST_PREFIX)
-
-    fun isKotestGlobalSupertype(name: String): Boolean = name in kotestConfigs
 
     fun isKotestGlobalReference(name: String): Boolean = name == KOTEST_AUTO_SCAN
 }

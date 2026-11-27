@@ -5,6 +5,8 @@ import gg.aquatic.testimpact.select.TestTaskInput
 import gg.aquatic.testimpact.select.gradle.internal.ClasspathPartition
 import gg.aquatic.testimpact.select.gradle.internal.ServiceFiles
 import gg.aquatic.testimpact.select.internal.EngineCatalog
+import org.gradle.api.file.FileCollection
+import org.gradle.api.model.ObjectFactory
 import org.gradle.api.provider.Provider
 import org.gradle.api.provider.ProviderFactory
 import org.gradle.api.tasks.testing.Test
@@ -13,19 +15,21 @@ import org.gradle.api.tasks.testing.junitplatform.JUnitPlatformOptions
 import org.gradle.api.tasks.testing.testng.TestNGOptions
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.Callable
 
 /**
  * What the build knows about one test task, captured at configuration time. The framework, the test class
- * directories and the classpath are providers read late: `useJUnitPlatform()`, `classpath += ...` or a new
- * `testClassesDirs` may come after the capture. The providers read the task, so the capture holds no project or
- * task field but is not a configuration cache value by itself.
+ * directories and the classpath are lazy file collections that read the task when resolved: `useJUnitPlatform()`,
+ * `classpath += ...` or a new `testClassesDirs` may come after the capture. The capture holds no project or task
+ * field, so it is a configuration cache value: the collections are resolved when the cache entry is stored, after
+ * configuration has finished.
  *
  * Threading: nothing here touches shared state. [resolve] reads files and archives, so call it at execution time.
  */
 internal class TestTaskCapture private constructor(
     val taskPath: String,
-    val testClassesDirs: Provider<Set<File>>,
-    val classpath: Provider<Set<File>>,
+    val testClassesDirs: FileCollection,
+    val classpath: FileCollection,
     val framework: Provider<TestFrameworkKind>,
     val excludedRoots: Provider<List<File>>,
 ) {
@@ -38,9 +42,9 @@ internal class TestTaskCapture private constructor(
      */
     @Throws(IOException::class)
     fun resolve(): TestTaskInput {
-        val classpathPaths = classpath.get().map(File::toPath)
+        val classpathPaths = classpath.files.map(File::toPath)
         val split = ClasspathPartition.split(
-            testClassesDirs.get().map(File::toPath),
+            testClassesDirs.files.map(File::toPath),
             classpathPaths,
             excludedRoots.get().map(File::toPath),
         )
@@ -54,7 +58,7 @@ internal class TestTaskCapture private constructor(
     companion object {
         private const val ENGINE_SERVICE = "org.junit.platform.engine.TestEngine"
 
-        fun of(test: Test, providers: ProviderFactory, gradleUserHome: File): TestTaskCapture {
+        fun of(test: Test, providers: ProviderFactory, objects: ObjectFactory, gradleUserHome: File): TestTaskCapture {
             val framework = providers.provider { test.options }.map { options ->
                 when (options) {
                     is JUnitPlatformOptions -> TestFrameworkKind.JUNIT_PLATFORM
@@ -66,8 +70,8 @@ internal class TestTaskCapture private constructor(
             val mavenLocal = providers.systemProperty("maven.repo.local").map { File(it) }
                 .orElse(providers.systemProperty("user.home").map { File(it, ".m2/repository") })
             val excluded = mavenLocal.map { listOf(gradleUserHome, it) }.orElse(listOf(gradleUserHome))
-            val testClassesDirs = providers.provider { test.testClassesDirs.files }
-            val classpath = providers.provider { test.classpath.files }
+            val testClassesDirs = objects.fileCollection().from(Callable { test.testClassesDirs })
+            val classpath = objects.fileCollection().from(Callable { test.classpath })
             return TestTaskCapture(test.path, testClassesDirs, classpath, framework, excluded)
         }
     }

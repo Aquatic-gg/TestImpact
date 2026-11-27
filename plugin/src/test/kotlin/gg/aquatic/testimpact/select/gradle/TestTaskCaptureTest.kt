@@ -34,7 +34,7 @@ class TestTaskCaptureTest {
     private fun testTask(project: Project): Test = project.tasks.named("test", Test::class.java).get()
 
     private fun capture(project: Project, test: Test) =
-        TestTaskCapture.of(test, project.providers, dir.resolve("gradle-home").toFile())
+        TestTaskCapture.of(test, project.providers, project.objects, dir.resolve("gradle-home").toFile())
 
     @kotlin.test.Test
     fun `junit 4 is the default framework`() {

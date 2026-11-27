@@ -65,25 +65,31 @@ internal class DependencyGraph private constructor(private val byName: Map<Strin
     fun scopeGroups(name: String): List<ScopeGroup> {
         val facts = byName[name] ?: return emptyList()
         val groups = ArrayList<ScopeGroup>(2)
-        facts.constantScope?.let { groups.add(scopeGroup(name, it, EdgeKind.CONSTANT)) }
-        facts.typeAliasScope?.let { groups.add(scopeGroup(name, it, EdgeKind.TYPEALIAS)) }
+        facts.constantScope?.let { groups.addAll(scopeGroup(name, it, EdgeKind.CONSTANT)) }
+        facts.typeAliasScope?.let { groups.addAll(scopeGroup(name, it, EdgeKind.TYPEALIAS)) }
         return groups
     }
 
-    private fun scopeGroup(definer: String, scope: ReachScope, kind: EdgeKind): ScopeGroup {
+    /** A file scope is two groups, the source file and the owner class, so definers sharing a file expand it once. */
+    private fun scopeGroup(definer: String, scope: ReachScope, kind: EdgeKind): List<ScopeGroup> {
         val kotlinOnly = kind == EdgeKind.TYPEALIAS
-        val key = when (scope) {
-            ReachScope.ALL -> "A"
-            ReachScope.PACKAGE -> "P:" + packageOf(definer)
-            ReachScope.FILE -> "F:" + sources[definer].orEmpty() + "\u0000" + owner(definer)
+        fun group(key: String, members: () -> List<String>) = ScopeGroup(key, kind) {
+            if (kotlinOnly) members().filter { byName[it]?.isKotlin == true } else members()
         }
-        return ScopeGroup(key, kind) {
-            val members = when (scope) {
-                ReachScope.ALL -> classes
-                ReachScope.PACKAGE -> inPackage[packageOf(definer)].orEmpty()
-                ReachScope.FILE -> sources[definer]?.let { inSource[it] }.orEmpty() + ownedBy(owner(definer))
+        return when (scope) {
+            ReachScope.ALL -> listOf(group("A") { classes })
+            ReachScope.PACKAGE -> {
+                val pkg = packageOf(definer)
+                listOf(group("P:$pkg") { inPackage[pkg].orEmpty() })
             }
-            if (kotlinOnly) members.filter { byName[it]?.isKotlin == true } else members
+            ReachScope.FILE -> {
+                val owner = owner(definer)
+                val source = sources[definer]
+                listOfNotNull(
+                    source?.let { key -> group("S:$key") { inSource[key].orEmpty() } },
+                    group("O:$owner") { ownedBy(owner) },
+                )
+            }
         }
     }
 

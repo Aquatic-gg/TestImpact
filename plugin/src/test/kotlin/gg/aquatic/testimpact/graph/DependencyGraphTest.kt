@@ -144,6 +144,48 @@ class DependencyGraphTest {
     }
 
     @Test
+    fun explicitDependentsAndScopeGroupsTogetherEqualDependents() {
+        val graph = DependencyGraph.of(
+            listOf(
+                facts("p.A", sourceFile = "A.kt", constantScope = ReachScope.ALL, isKotlin = true),
+                facts("p.FooKt", sourceFile = "Foo.kt", constantScope = ReachScope.FILE, typeAliasScope = ReachScope.FILE, isKotlin = true),
+                facts("p.Foo", sourceFile = "Foo.kt", references = listOf("p.FooKt", "p.A"), isKotlin = true),
+                facts("p.Foo\$In", sourceFile = "Foo.kt", outer = "p.Foo", constantScope = ReachScope.FILE, isKotlin = true),
+                facts("p.Pkg", sourceFile = "Pkg.kt", constantScope = ReachScope.PACKAGE, typeAliasScope = ReachScope.ALL, isKotlin = true),
+                facts("p.Java", sourceFile = "Java.java", supertypes = listOf("p.Pkg")),
+                facts("q.Other", sourceFile = "Other.kt", references = listOf("p.Pkg"), isKotlin = true),
+            ),
+        )
+
+        for (name in graph.classes + "p.Unscanned") {
+            val merged = HashMap<String, EdgeKind>()
+            fun put(from: String, kind: EdgeKind) {
+                if (from != name) merged.merge(from, kind) { a, b -> if (a <= b) a else b }
+            }
+            graph.explicitDependentsOf(name).forEach { put(it.from, it.kind) }
+            graph.scopeGroups(name).forEach { group -> group.members().forEach { put(it, group.kind) } }
+            assertEquals(graph.dependentPairs(name), merged.map { it.key to it.value }.sortedBy { it.first }, name)
+        }
+    }
+
+    @Test
+    fun fileScopeIsSplitIntoSourceAndOwnerGroups() {
+        val graph = DependencyGraph.of(
+            listOf(
+                facts("p.AKt", sourceFile = "F.kt", constantScope = ReachScope.FILE, isKotlin = true),
+                facts("p.BKt", sourceFile = "F.kt", constantScope = ReachScope.FILE, isKotlin = true),
+            ),
+        )
+
+        val a = graph.scopeGroups("p.AKt")
+        val b = graph.scopeGroups("p.BKt")
+        assertEquals(2, a.size)
+        assertEquals(listOf("S:p/F.kt"), a.map { it.key }.filter { it.startsWith("S:") })
+        assertEquals(a.first().key, b.first().key)
+        assertTrue(a.last().key != b.last().key)
+    }
+
+    @Test
     fun typeAliasReachesKotlinClassesOnly() {
         val graph = DependencyGraph.of(
             listOf(

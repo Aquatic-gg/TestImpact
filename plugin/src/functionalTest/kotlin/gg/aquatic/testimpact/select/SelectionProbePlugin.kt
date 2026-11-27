@@ -18,7 +18,7 @@ class SelectionProbePlugin : Plugin<Project> {
             val tests = project.tasks.withType(Test::class.java).toList()
             probe.configure { task ->
                 for (test in tests) {
-                    task.captures.add(TestTaskCapture.of(test, project.providers, userHome))
+                    task.captures.add(TestTaskCapture.of(test, project.providers, project.objects, userHome))
                     task.runtimeFiles.from(test.testClassesDirs, test.classpath)
                 }
             }
