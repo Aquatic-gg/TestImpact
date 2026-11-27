@@ -23,6 +23,11 @@ sourceSets.main {
     resources.srcDir(files(layout.buildDirectory.dir("generated/plugin-version")).builtBy(pluginVersionProperties))
 }
 
+val testJavaVersion: Int? = providers.gradleProperty("testimpact.testJava").orNull?.let { raw ->
+    raw.trim().toIntOrNull()?.takeIf { it >= 17 }
+        ?: throw GradleException("testimpact.testJava must be an integer JDK version of 17 or newer, got '$raw'")
+}
+
 testing {
     suites {
         named<JvmTestSuite>("test") {
@@ -43,6 +48,12 @@ testing {
                 testTask.configure {
                     shouldRunAfter(tasks.named("test"))
                     systemProperty("testimpact.kotlinVersion", libs.versions.kotlin.get())
+                    systemProperty(
+                        "testimpact.gradleVersions",
+                        listOf(libs.versions.gradle.oldest, libs.versions.gradle.previous, libs.versions.gradle.newest)
+                            .joinToString(",") { it.get() }
+                    )
+                    testJavaVersion?.let { systemProperty("testimpact.testJava", it) }
                 }
             }
         }
@@ -58,6 +69,12 @@ kotlin.target.compilations.named("functionalTest") {
 class ReadmeArgumentProvider(@get:InputFile @get:PathSensitive(PathSensitivity.RELATIVE) val readme: RegularFile) :
     CommandLineArgumentProvider {
     override fun asArguments(): Iterable<String> = listOf("-Dtestimpact.readme=${readme.asFile.absolutePath}")
+}
+
+testJavaVersion?.let { jdk ->
+    tasks.withType<Test>().configureEach {
+        javaLauncher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(jdk) }
+    }
 }
 
 tasks.test {
