@@ -32,7 +32,6 @@ class FallbackHistoryFunctionalTest {
         FallbackFixture.assertFull(projectDir, build("test"), "first-run", both)
         assertTrue(Files.exists(marker()))
 
-        GitFixture.commitAll(projectDir, "first")
         changeCalc()
         val partial = build("test")
 

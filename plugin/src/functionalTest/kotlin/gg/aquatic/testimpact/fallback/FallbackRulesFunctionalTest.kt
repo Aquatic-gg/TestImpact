@@ -38,13 +38,18 @@ class FallbackRulesFunctionalTest {
     }
 
     @Test
-    fun `a changed version catalog and a changed lock file run everything`() {
-        project(files = mapOf("gradle/libs.versions.toml" to "[versions]\nx = \"1\"\n", "gradle.lockfile" to "# one\n"))
-        ImpactFixture.file(projectDir, "gradle/libs.versions.toml", "[versions]\nx = \"2\"\n")
-        FallbackFixture.assertFull(projectDir, build("test"), "dependency-change", both)
+    fun `a changed version catalog runs everything`() {
+        project(files = mapOf("gradle/libs.versions.toml" to "[versions]\njunit = \"5.14.3\"\n"))
+        ImpactFixture.file(projectDir, "gradle/libs.versions.toml", "[versions]\njunit = \"5.14.4\"\n")
 
-        GitFixture.commitAll(projectDir, "catalog")
+        FallbackFixture.assertFull(projectDir, build("test"), "dependency-change", both)
+    }
+
+    @Test
+    fun `a changed lock file runs everything`() {
+        project(files = mapOf("gradle.lockfile" to "# one\n"))
         ImpactFixture.file(projectDir, "gradle.lockfile", "# two\n")
+
         FallbackFixture.assertFull(projectDir, build("test"), "dependency-change", both)
     }
 
