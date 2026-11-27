@@ -1,6 +1,5 @@
 package gg.aquatic.testimpact.graph
 
-import gg.aquatic.testimpact.graph.internal.classfile.ClassFileReader
 import gg.aquatic.testimpact.graph.internal.classfile.MalformedClassException
 import java.io.IOException
 import java.io.InputStream
@@ -29,15 +28,23 @@ internal object ClassGraphScanner {
     private const val MODULE_INFO = "module-info.class"
     private const val VERSIONS_PREFIX = "META-INF/versions/"
 
-    /** A root that does not exist contributes nothing; a class larger than [maxClassBytes] is a problem. */
-    fun scan(roots: List<Path>, maxClassBytes: Int = DEFAULT_MAX_CLASS_BYTES): ClassGraphResult {
+    /**
+     * A root that does not exist contributes nothing; a class larger than [maxClassBytes] is a problem. The size
+     * cap is checked before [reading] sees the bytes, and a [MalformedClassException] thrown by [reading] stays a
+     * problem of that class.
+     */
+    fun scan(
+        roots: List<Path>,
+        maxClassBytes: Int = DEFAULT_MAX_CLASS_BYTES,
+        reading: ClassReading = ClassReading.Direct,
+    ): ClassGraphResult {
         val facts = ArrayList<ClassFacts>()
         val problems = ArrayList<ClassProblem>()
         for (root in roots) {
             when {
                 Files.notExists(root) -> Unit
-                Files.isDirectory(root) -> scanDirectory(root, maxClassBytes, facts, problems)
-                else -> scanJar(root, maxClassBytes, facts, problems)
+                Files.isDirectory(root) -> scanDirectory(root, maxClassBytes, reading, facts, problems)
+                else -> scanJar(root, maxClassBytes, reading, facts, problems)
             }
         }
         if (problems.isNotEmpty()) {
@@ -46,7 +53,13 @@ internal object ClassGraphScanner {
         return ClassGraphResult.Known(DependencyGraph.of(facts))
     }
 
-    private fun scanDirectory(root: Path, cap: Int, facts: MutableList<ClassFacts>, problems: MutableList<ClassProblem>) {
+    private fun scanDirectory(
+        root: Path,
+        cap: Int,
+        reading: ClassReading,
+        facts: MutableList<ClassFacts>,
+        problems: MutableList<ClassProblem>,
+    ) {
         val files = ArrayList<Pair<Path, String>>()
         try {
             val real = root.toRealPath()
@@ -80,11 +93,17 @@ internal object ClassGraphScanner {
             return
         }
         for ((path, _) in files.sortedBy { it.second }) {
-            readClass(path.toString(), cap, facts, problems) { Files.newInputStream(path) }
+            readClass(root, path.toString(), cap, reading, facts, problems) { Files.newInputStream(path) }
         }
     }
 
-    private fun scanJar(root: Path, cap: Int, facts: MutableList<ClassFacts>, problems: MutableList<ClassProblem>) {
+    private fun scanJar(
+        root: Path,
+        cap: Int,
+        reading: ClassReading,
+        facts: MutableList<ClassFacts>,
+        problems: MutableList<ClassProblem>,
+    ) {
         try {
             ZipFile(root.toFile()).use { zip ->
                 val entries = zip.entries().asSequence()
@@ -92,7 +111,7 @@ internal object ClassGraphScanner {
                     .sortedBy { it.name }
                     .toList()
                 for (entry in entries) {
-                    readClass("$root!/${entry.name}", cap, facts, problems) { zip.getInputStream(entry) }
+                    readClass(root, "$root!/${entry.name}", cap, reading, facts, problems) { zip.getInputStream(entry) }
                 }
             }
         } catch (e: ZipException) {
@@ -105,8 +124,10 @@ internal object ClassGraphScanner {
     }
 
     private fun readClass(
+        root: Path,
         location: String,
         cap: Int,
+        reading: ClassReading,
         facts: MutableList<ClassFacts>,
         problems: MutableList<ClassProblem>,
         open: () -> InputStream,
@@ -117,7 +138,7 @@ internal object ClassGraphScanner {
                 problems.add(ClassProblem(location, "class file larger than $cap bytes"))
                 return
             }
-            facts.add(ClassFileReader.read(bytes))
+            facts.add(reading.read(root, bytes))
         } catch (e: MalformedClassException) {
             problems.add(ClassProblem(location, "malformed class: ${describe(e)}"))
         } catch (e: IOException) {

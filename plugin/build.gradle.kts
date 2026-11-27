@@ -14,6 +14,15 @@ gradlePlugin {
     }
 }
 
+val pluginVersionProperties = tasks.register<WriteProperties>("pluginVersionProperties") {
+    destinationFile = layout.buildDirectory.file("generated/plugin-version/gg/aquatic/testimpact/plugin.properties")
+    property("version", project.version.toString())
+}
+
+sourceSets.main {
+    resources.srcDir(files(layout.buildDirectory.dir("generated/plugin-version")).builtBy(pluginVersionProperties))
+}
+
 testing {
     suites {
         named<JvmTestSuite>("test") {
