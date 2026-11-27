@@ -24,10 +24,22 @@ internal class SeedGraph private constructor(
     private val providedBy: Map<String, List<String>> = buildProvidedBy()
     private val dynamicByPackage: Map<String, List<String>> = classes.filter { it in dynamicNames }.groupBy { PackageNames.of(it) }
     private val loaders: List<String> = classes.filter { byName.getValue(it).loadsResources }
-    private val stringLoaders: List<String> = loaders.filter { byName.getValue(it).buildsStrings }
+    private val reflectors: List<String> = classes.filter { byName.getValue(it).dynamic }
 
     /** True when [name] was scanned and either calls reflection APIs or lies under a `dynamicPackages` entry. */
     fun isDynamic(name: String): Boolean = name in dynamicNames
+
+    /**
+     * Whether some scanned class can consume [node]. False for a resource that no class names and no class loads
+     * (a test framework or logging configuration read by a library), and for a services file whose interface was not
+     * scanned: the graph cannot attribute such a change, so the caller must run everything. Classes are always
+     * attributed.
+     */
+    fun isAttributed(node: String): Boolean {
+        if (!node.startsWith("/")) return true
+        serviceFiles[node]?.let { return it in byName }
+        return loaders.isNotEmpty() || suffixes(node.substring(1)).any { it in holders }
+    }
 
     /** What depends on [node], a class name or a resource node. */
     fun dependents(node: String): List<SeedEdge> {
@@ -49,19 +61,14 @@ internal class SeedGraph private constructor(
             }
             dynamicByPackage[pkg]?.forEach { found.keep(it, SeedKind.DYNAMIC) }
         }
+        if (rules.marksDynamic(PackageNames.of(name))) reflectors.forEach { found.keep(it, SeedKind.DYNAMIC) }
     }
 
     private fun resourceDependents(node: String, found: MutableMap<String, SeedKind>) {
         val path = node.substring(1)
         serviceFiles[node]?.let { found.keep(it, SeedKind.SERVICE) }
-        var named = false
-        for (suffix in suffixes(path)) {
-            holders[suffix]?.forEach {
-                named = true
-                found.keep(it, SeedKind.RESOURCE_NAME)
-            }
-        }
-        (if (named) stringLoaders else loaders).forEach { found.keep(it, SeedKind.RESOURCE_LOADER) }
+        for (suffix in suffixes(path)) holders[suffix]?.forEach { found.keep(it, SeedKind.RESOURCE_NAME) }
+        loaders.forEach { found.keep(it, SeedKind.RESOURCE_LOADER) }
         val directory = path.substringBeforeLast('/', "").replace('/', '.')
         for (pkg in PackageNames.withAncestors(directory)) {
             dynamicByPackage[pkg]?.forEach { found.keep(it, SeedKind.DYNAMIC) }

@@ -67,6 +67,46 @@ class SeedApisTest {
     }
 
     @Test
+    fun `class loader subclasses are matched by name`() {
+        for (owner in listOf("java.net.URLClassLoader", "java.security.SecureClassLoader", "com.acme.PluginClassLoader", "a.B\$InnerClassLoader")) {
+            assertEquals(SeedApis.DYNAMIC, SeedApis.classify(owner, "loadClass"), owner)
+            assertEquals(SeedApis.DYNAMIC, SeedApis.classify(owner, "findClass"), owner)
+            assertEquals(SeedApis.LOADER, SeedApis.classify(owner, "getResource"), owner)
+            assertEquals(SeedApis.LOADER, SeedApis.classify(owner, "getResourceAsStream"), owner)
+            assertEquals(SeedApis.LOADER, SeedApis.classify(owner, "findResource"), owner)
+            assertEquals(SeedApis.LOADER, SeedApis.classify(owner, "findResources"), owner)
+            assertEquals(SeedApis.LOADER, SeedApis.classify(owner, "resources"), owner)
+            assertEquals(SeedApis.LOADER, SeedApis.classify(owner, "getSystemResource"), owner)
+        }
+        assertEquals(SeedApis.DYNAMIC, SeedApis.classify("java.net.URLClassLoader", "newInstance"))
+        assertEquals(SeedApis.DYNAMIC, SeedApis.classify("java.lang.Class", "findClass"))
+        assertEquals(SeedApis.LOADER, SeedApis.classify("java.lang.Class", "findResource"))
+    }
+
+    @Test
+    fun `common names on other owners are not reflection`() {
+        for (name in listOf("loadClass", "findClass", "newInstance", "forName", "call", "getResource", "resources", "getMethod")) {
+            assertEquals(0, SeedApis.classify("com.acme.Service", name), name)
+        }
+        assertEquals(0, SeedApis.classify("java.util.concurrent.Callable", "call"))
+    }
+
+    @Test
+    fun `resource bundle lookups are loaders`() {
+        assertEquals(SeedApis.LOADER, SeedApis.classify("java.util.ResourceBundle", "getBundle"))
+        assertEquals(0, SeedApis.classify("java.util.ResourceBundle", "getString"))
+    }
+
+    @Test
+    fun `kotlin reflect call and callBy are dynamic`() {
+        for (owner in listOf("kotlin.reflect.KCallable", "kotlin.reflect.KFunction", "kotlin.reflect.KProperty1")) {
+            assertEquals(SeedApis.DYNAMIC, SeedApis.classify(owner, "call"), owner)
+            assertEquals(SeedApis.DYNAMIC, SeedApis.classify(owner, "callBy"), owner)
+        }
+        assertEquals(0, SeedApis.classify("kotlin.reflect.KFunction", "getName"))
+    }
+
+    @Test
     fun `string builders are recognised`() {
         assertEquals(SeedApis.BUILDER, SeedApis.classify("java.lang.StringBuilder", "append"))
         assertEquals(SeedApis.BUILDER, SeedApis.classify("java.lang.StringBuffer", "append"))

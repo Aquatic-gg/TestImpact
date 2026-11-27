@@ -44,9 +44,10 @@ class SeedRecallTest {
     }
 
     @Test
-    fun `a named resource reaches its holders and the loaders that build names`() {
+    fun `a named resource reaches its holders and every other loader`() {
         assertEquals(
             listOf(
+                name("res.DescriptorLoader") to SeedKind.RESOURCE_LOADER,
                 name("res.DynamicLoader") to SeedKind.RESOURCE_LOADER,
                 name("res.RelativeLoader") to SeedKind.RESOURCE_NAME,
                 name("res.StaticLoader") to SeedKind.RESOURCE_NAME,

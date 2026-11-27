@@ -107,18 +107,75 @@ class SeedGraphTest {
     }
 
     @Test
-    fun `with a naming literal only string building loaders are added`() {
+    fun `a naming literal never hides the loaders`() {
         val g = graph(
             listOf(
                 cls("a.Named", listOf("s.txt"), loads = true),
                 cls("a.Builder", loads = true, builds = true),
                 cls("a.Plain", loads = true),
+                cls("a.Holder", listOf("s.txt")),
             ),
         )
         assertEquals(
-            listOf("a.Builder" to SeedKind.RESOURCE_LOADER, "a.Named" to SeedKind.RESOURCE_NAME),
+            listOf(
+                "a.Builder" to SeedKind.RESOURCE_LOADER,
+                "a.Holder" to SeedKind.RESOURCE_NAME,
+                "a.Named" to SeedKind.RESOURCE_NAME,
+                "a.Plain" to SeedKind.RESOURCE_LOADER,
+            ),
             g.pairs("/s.txt"),
         )
+    }
+
+    @Test
+    fun `an unrelated holder of a bare file name keeps the parameter loader`() {
+        val g = graph(listOf(cls("a.JsonLoader", loads = true), cls("other.Thing", listOf("en.json"))))
+        assertEquals(
+            listOf("a.JsonLoader" to SeedKind.RESOURCE_LOADER, "other.Thing" to SeedKind.RESOURCE_NAME),
+            g.pairs("/data/en.json"),
+        )
+    }
+
+    @Test
+    fun `dynamic packages reach every reflecting class outside them`() {
+        val g = graph(
+            listOf(cls("com.other.Loader", dynamic = true), cls("com.example.plugins.Foo"), cls("com.third.Plain")),
+            rules = SeedRules.of(listOf("com.example.plugins"), emptyList()),
+        )
+        assertEquals(listOf("com.other.Loader" to SeedKind.DYNAMIC), g.pairs("com.example.plugins.Foo"))
+        assertEquals(emptyList(), g.pairs("com.third.Plain"))
+    }
+
+    @Test
+    fun `without a dynamic package a reflecting class elsewhere is not reached`() {
+        val g = graph(listOf(cls("com.other.Loader", dynamic = true), cls("com.example.plugins.Foo")))
+        assertEquals(emptyList(), g.pairs("com.example.plugins.Foo"))
+    }
+
+    @Test
+    fun `a resource nobody names or loads is not attributed`() {
+        val g = graph(listOf(cls("a.Plain"), cls("a.Holder", listOf("named.txt"))))
+        assertFalse(g.isAttributed("/junit-platform.properties"))
+        assertFalse(g.isAttributed("/mockito-extensions/org.mockito.plugins.MockMaker"))
+        assertTrue(g.isAttributed("/x/named.txt"))
+        assertTrue(g.isAttributed("a.Plain"))
+        assertTrue(g.isAttributed("never.Scanned"))
+    }
+
+    @Test
+    fun `any resource loader attributes a resource`() {
+        val g = graph(listOf(cls("a.Loader", loads = true)))
+        assertTrue(g.isAttributed("/logback-test.xml"))
+    }
+
+    @Test
+    fun `a services file is attributed only when its interface was scanned`() {
+        val g = graph(
+            listOf(cls("p.Api"), cls("a.Loader", loads = true)),
+            listOf(res("META-INF/services/p.Api"), res("META-INF/services/ext.Spi")),
+        )
+        assertTrue(g.isAttributed("/META-INF/services/p.Api"))
+        assertFalse(g.isAttributed("/META-INF/services/ext.Spi"))
     }
 
     @Test

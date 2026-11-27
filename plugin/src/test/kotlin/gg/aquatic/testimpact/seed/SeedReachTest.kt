@@ -33,14 +33,13 @@ class SeedReachTest {
         assertSeedOnly(listOf(name("pkg.scan.Scanned")), name("pkg.PackageScannerCheck"), SeedKind.PACKAGE_NAME)
 
     @Test
-    fun `a changed static resource reaches its named loaders and the dynamic one only`() {
+    fun `a changed static resource reaches its named loaders and every other loader`() {
         val changed = listOf(resource("static.txt"))
         assertSeedOnly(changed, name("res.StaticLoaderCheck"), SeedKind.RESOURCE_NAME)
         assertSeedOnly(changed, name("res.RelativeLoaderCheck"), SeedKind.RESOURCE_NAME)
         assertSeedOnly(changed, name("res.DynamicLoaderCheck"), SeedKind.RESOURCE_LOADER)
-        val reached = SeedFixtures.reach(changed, withSeeds = true)
-        assertFalse(name("res.NoLoaderCheck") in reached)
-        assertFalse(name("res.DescriptorLoaderCheck") in reached)
+        assertSeedOnly(changed, name("res.DescriptorLoaderCheck"), SeedKind.RESOURCE_LOADER)
+        assertFalse(name("res.NoLoaderCheck") in SeedFixtures.reach(changed, withSeeds = true))
     }
 
     @Test
@@ -73,6 +72,15 @@ class SeedReachTest {
         val target = name("userdyn.BCheck")
         assertSeedOnly(changed, target, SeedKind.DYNAMIC, seeds = SeedFixtures.seedGraph(rules))
         assertFalse(target in SeedFixtures.reach(changed, withSeeds = true), "without the rule nothing links A to B")
+    }
+
+    @Test
+    fun `a listed dynamic package reaches the check of a reflector outside it`() {
+        val rules = SeedRules.of(listOf(name("userdyn")), emptyList())
+        val changed = listOf(name("userdyn.A"))
+        val target = name("dyn.ReflectorCheck")
+        assertSeedOnly(changed, target, SeedKind.DYNAMIC, seeds = SeedFixtures.seedGraph(rules))
+        assertFalse(target in SeedFixtures.reach(changed, withSeeds = true), "without the rule nothing links A to the reflector")
     }
 
     @Test
