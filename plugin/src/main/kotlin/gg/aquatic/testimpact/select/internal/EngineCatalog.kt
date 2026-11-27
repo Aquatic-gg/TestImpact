@@ -16,15 +16,19 @@ internal object EngineCatalog {
         "org.junit.platform.launcher.LauncherDiscoveryListener",
         "org.junit.platform.launcher.TestExecutionListener",
         "org.junit.platform.launcher.PostDiscoveryFilter",
+        "org.junit.platform.launcher.LauncherInterceptor",
     )
 
-    private const val KOTEST_PROJECT_CONFIG = "io.kotest.core.config.AbstractProjectConfig"
+    private val kotestConfigs = setOf(
+        "io.kotest.core.config.AbstractProjectConfig",
+        "io.kotest.core.config.AbstractPackageConfig",
+    )
     private const val KOTEST_AUTO_SCAN = "io.kotest.core.annotation.AutoScan"
 
     fun isSupportedEngine(engine: String): Boolean =
         engine == JUPITER || engine == VINTAGE || engine.startsWith(KOTEST_PREFIX)
 
-    fun isKotestGlobalSupertype(name: String): Boolean = name == KOTEST_PROJECT_CONFIG
+    fun isKotestGlobalSupertype(name: String): Boolean = name in kotestConfigs
 
     fun isKotestGlobalReference(name: String): Boolean = name == KOTEST_AUTO_SCAN
 }

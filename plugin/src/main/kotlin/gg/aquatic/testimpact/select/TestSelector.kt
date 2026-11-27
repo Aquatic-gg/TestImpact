@@ -70,8 +70,11 @@ internal object TestSelector {
         TestFrameworkKind.JUNIT_PLATFORM -> {
             val unknownEngines = input.engines.filterNot(EngineCatalog::isSupportedEngine)
             when {
-                input.engines.isEmpty() ->
-                    unknown(input, SelectionUnknownReason.UNKNOWN_ENGINE, "no JUnit Platform engine on the test runtime classpath")
+                input.engines.isEmpty() -> unknown(
+                    input,
+                    SelectionUnknownReason.UNKNOWN_ENGINE,
+                    "no JUnit Platform engine on the test runtime classpath",
+                )
 
                 unknownEngines.isNotEmpty() ->
                     unknown(input, SelectionUnknownReason.UNKNOWN_ENGINE, unknownEngines.sorted().joinToString(", "))
@@ -110,15 +113,36 @@ internal object TestSelector {
     }
 
     private fun reachedGlobal(input: TestTaskInput, graph: DependencyGraph, reach: ReachResult): ReachPath? {
+        val inheriting = HashMap<String, Boolean>()
         val kotest = graph.classes.filter { name ->
-            val facts = graph.facts(name) ?: return@filter false
-            facts.supertypes.any(EngineCatalog::isKotestGlobalSupertype) ||
-                facts.references.any(EngineCatalog::isKotestGlobalReference)
+            inheritsKotestConfig(graph, name, inheriting) ||
+                graph.facts(name)?.references?.any(EngineCatalog::isKotestGlobalReference) == true
         }
         for (name in (input.globalClasses + kotest).sorted()) {
             for (member in listOf(name) + graph.ownedBy(name)) reach.pathToClass(member)?.let { return it }
         }
         return null
+    }
+
+    /** True when a supertype chain of [name], however long, reaches a Kotest project or package configuration. */
+    private fun inheritsKotestConfig(graph: DependencyGraph, name: String, memo: MutableMap<String, Boolean>): Boolean {
+        memo[name]?.let { return it }
+        val seen = HashSet<String>()
+        val pending = ArrayDeque<String>()
+        pending.add(name)
+        var found = false
+        while (pending.isNotEmpty() && !found) {
+            val facts = graph.facts(pending.removeLast()) ?: continue
+            for (supertype in facts.supertypes) {
+                if (EngineCatalog.isKotestGlobalSupertype(supertype) || memo[supertype] == true) {
+                    found = true
+                    break
+                }
+                if (seen.add(supertype)) pending.add(supertype)
+            }
+        }
+        memo[name] = found
+        return found
     }
 
     private fun describe(problems: List<ClassProblem>): String {

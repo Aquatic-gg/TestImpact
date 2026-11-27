@@ -4,6 +4,7 @@ import gg.aquatic.testimpact.graph.ClassGraphResult
 import gg.aquatic.testimpact.graph.ClassProblem
 import gg.aquatic.testimpact.graph.DependencyGraph
 import gg.aquatic.testimpact.graph.EdgeKind
+import gg.aquatic.testimpact.select.internal.EngineCatalog
 import gg.aquatic.testimpact.select.internal.FactsBuilder.ABSTRACT
 import gg.aquatic.testimpact.select.internal.FactsBuilder.PUBLIC
 import gg.aquatic.testimpact.select.internal.FactsBuilder.facts
@@ -146,6 +147,29 @@ class TestSelectorTest {
         )
         val result = known(TestSelector.select(input(), seedsOf("m.Core"), scanner(tests, graph(facts("m.Core")))))
         assertEquals(listOf("t.Config", "t.Spec"), result.tests.map { it.className })
+    }
+
+    @Test
+    fun `a kotest config reached through a base class or a package config selects every test class`() {
+        val transitive = graph(
+            facts("t.Base", PUBLIC or ABSTRACT, supertypes = listOf("io.kotest.core.config.AbstractProjectConfig")),
+            facts("t.Config", supertypes = listOf("t.Base"), references = listOf("m.Core")),
+            facts("t.Spec"),
+        )
+        val viaBase = known(TestSelector.select(input(), seedsOf("m.Core"), scanner(transitive, graph(facts("m.Core")))))
+        assertEquals(listOf("t.Config", "t.Spec"), viaBase.tests.map { it.className })
+
+        val pkg = graph(
+            facts("t.PkgConfig", supertypes = listOf("io.kotest.core.config.AbstractPackageConfig"), references = listOf("m.Core")),
+            facts("t.Spec"),
+        )
+        val viaPackage = known(TestSelector.select(input(), seedsOf("m.Core"), scanner(pkg, graph(facts("m.Core")))))
+        assertEquals(listOf("t.PkgConfig", "t.Spec"), viaPackage.tests.map { it.className })
+    }
+
+    @Test
+    fun `the launcher interceptor service is a global registration`() {
+        assertTrue("org.junit.platform.launcher.LauncherInterceptor" in EngineCatalog.globalServices)
     }
 
     @Test
