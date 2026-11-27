@@ -28,19 +28,65 @@ Some links between code and tests do not show up in bytecode, so selection can m
 
 Run the full suite on your main branch and before a release. Treat selection as a fast feedback loop, not a replacement for the full run.
 
+## Usage
+
+```kotlin
+plugins {
+    id("gg.aquatic.testimpact")
+}
+```
+
+That is all the setup. Apply the plugin in every project whose tests should be selected, for example from a convention plugin. Each `Test` task of that project, including custom test suites, gets a `testImpactSelect<Name>` task that runs before it, decides which test classes the changes can reach and prints one line:
+
+```
+TestImpact :app:test: changed 3, selected 5 of 120 test classes
+TestImpact :app:integrationTest: changed 3, selected all test classes, full: changes-unknown: <detail>
+```
+
+- Changes are the files that differ from the merge base with `baseRef`, committed or not, plus untracked files. A tree without changes selects nothing, so the tasks are skipped, unless `alwaysRun` names classes.
+- A task whose selection is empty is skipped, the build still succeeds.
+- Anything uncertain runs the whole task and the line says why after `full:`. A failure inside the plugin does the same.
+- The selection is an input of the `Test` task, so a partial run is never reused as the result of a full one, from the up-to-date check or the build cache.
+- `--tests` on the command line wins: the task runs what `--tests` names and nothing is selected away. A `filter { }` in the build script stays in force together with the selection; classes it excludes are not run and an empty intersection does not fail the build.
+- Changes in other modules are found through the conventional layout `src/<set>/java`, `src/<set>/kotlin` and `src/<set>/resources`. A change in a module that puts no classes on the task's classpath does not affect that task. A Java or Kotlin file outside every known layout runs the full task, and so does any resource change or a change of build logic.
+- Only `Test` tasks that exist after the project is evaluated are wired. A task created later runs as without the plugin.
+
+### Mode
+
+`mode` is `auto` (default), `full` or `off`. The first of these that is set wins:
+
+1. the Gradle property `-PtestImpact=<mode>`
+2. the environment variable `TEST_IMPACT=<mode>`
+3. `testImpact { mode = "<mode>" }`
+4. `auto`
+
+- `auto` selects.
+- `full` runs every test and still prints the line, so builds can be compared.
+- `off` adds nothing to the build: no task, no task input, no action. Gradle behaves exactly as without the plugin, including build cache hits.
+
+The value is trimmed and not case-sensitive. A value that is none of these fails the build with a message naming where it came from.
+
 ## Configuration
 
 ```kotlin
 testImpact {
+    mode = "auto"
+    baseRef = "origin/main"
+    wideChangePercent = 60
+    wideChangeMinClasses = 12
     dynamicPackages.add("com.example.plugins")
     alwaysRun.add("*IntegrationTest")
 }
 ```
 
+- `mode`: see [Mode](#mode).
+- `baseRef`: the git ref the changes are measured against. Default: not set, the first of `origin/HEAD`, `origin/main`, `origin/master`, `main` and `master` that exists; none of them, or no git repository, runs the full task. At most 255 characters, no whitespace or control characters, no leading `-`.
+- `wideChangePercent`, `wideChangeMinClasses`: when the selection holds more than `wideChangePercent` percent (1 to 100, default 60) of at least `wideChangeMinClasses` test classes (0 to 1,000,000, default 12), the whole task runs instead, with the reason `wide-change`.
+
 - `dynamicPackages`: packages whose classes are loaded or called by name in ways bytecode cannot show. A class counts as reflecting when it calls `Class.forName` or another `Class` or `ClassLoader` lookup by name, `ServiceLoader`, `MethodHandles.Lookup`, `java.lang.reflect` (except `Array`), `kotlin.reflect.full` / `kotlin.reflect.jvm`, or `call` / `callBy` on any `kotlin.reflect` type. Such a class is assumed to reach its own package and the packages below it. A change in a listed package, or below it, reaches every class that uses reflection, wherever it lives.
 - `alwaysRun`: test classes that run whatever changed. A pattern is made of letters, digits, `_`, `$`, `.` and `*`, where `*` matches any sequence including dots. A pattern without a dot matches the simple class name.
 
-Both accept at most 1000 entries of at most 512 characters. Invalid entries fail the build with a message naming the property and the entry. The values take effect once selection runs; today the plugin selects nothing.
+`dynamicPackages` and `alwaysRun` accept at most 1000 entries of at most 512 characters. Invalid values of any property fail the build with a message naming the property and the value.
 
 ## How tests are selected
 
@@ -49,6 +95,8 @@ For every test task the plugin reads the compiled classes on the task's runtime 
 - The graph follows project dependencies, test fixtures and custom test source sets, because it is built from the resolved test runtime classpath. Libraries from the Gradle user home and the local Maven repository are not scanned.
 - A test that inherits from an abstract base class or interface is selected when the base changes, also when the base lives in another module or in test fixtures. An abstract base class or interface is never selected itself, its concrete subclasses are; a concrete base class is selected like any other test class.
 - A change reached through a nested, inner or anonymous class selects the top-level test class that contains it.
+- Links that bytecode cannot show are followed too: a class name in a string constant or a scanned resource, a `META-INF/services` file, and the classes of a listed `dynamicPackages` package. The path of a selected test names the kind of link it went through.
+- Test classes matching `alwaysRun` are selected in every automatic run, also when nothing changed.
 - JUnit 4, JUnit Jupiter, the Vintage engine and Kotest are supported. A global extension or listener registration, or a Kotest project or package config (also through a base class), that a change reaches selects every test of the task.
 - The result is "unknown", and the whole task runs, when the change cannot be mapped to classes (build logic, resources, unresolved sources, a changed source file that declares no classes such as `package-info.java`, unknown change detection), when the framework is TestNG or another runner, when a JUnit Platform engine is missing or not one of the supported ones, or when a class file or service file cannot be read.
 
@@ -60,7 +108,7 @@ Known gaps:
 
 ## Status
 
-Early development. The plugin applies, but it selects nothing yet, so every test still runs.
+Early development. Every Test task of a project that applies the plugin runs only the selected classes; `mode = "off"` restores the stock behaviour.
 
 ## Requirements
 
