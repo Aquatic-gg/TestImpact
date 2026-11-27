@@ -48,8 +48,21 @@ testing {
 
 gradlePlugin.testSourceSets.add(sourceSets["functionalTest"])
 
+tasks.test {
+    useJUnitPlatform { excludeTags("benchmark") }
+}
+
+val benchmarkTest = tasks.register<Test>("benchmarkTest") {
+    description = "Runs the timing benchmarks excluded from test."
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform { includeTags("benchmark") }
+    shouldRunAfter(tasks.test)
+}
+
 tasks.named("check") {
-    dependsOn(testing.suites.named("functionalTest"))
+    dependsOn(testing.suites.named("functionalTest"), benchmarkTest)
 }
 
 tasks.test {
