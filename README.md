@@ -21,10 +21,26 @@ TestImpact selects the tests that can reach what changed. It does this from the 
 Some links between code and tests do not show up in bytecode, so selection can miss them:
 
 - Tests that reach code only through reflection with computed names.
+- Class names inside resources that are not scanned. Scanned are files under `META-INF/` (except `.kotlin_module` and signature files `.SF`, `.RSA`, `.DSA`, `.EC`) and files with the extension `yml`, `yaml`, `properties`, `json`, `xml`, `conf`, `toml`, `txt` or `mf`; other resources count by path only.
+- Reflection on classes outside the package of the reflecting class that is not listed in `dynamicPackages`.
 - External state such as databases, files outside the build, and the environment.
 - Non-JVM tests.
 
 Run the full suite on your main branch and before a release. Treat selection as a fast feedback loop, not a replacement for the full run.
+
+## Configuration
+
+```kotlin
+testImpact {
+    dynamicPackages.add("com.example.plugins")
+    alwaysRun.add("*IntegrationTest")
+}
+```
+
+- `dynamicPackages`: packages whose classes are loaded or called by name in ways bytecode cannot show. A class counts as reflecting when it calls `Class.forName` or another `Class` or `ClassLoader` lookup by name, `ServiceLoader`, `MethodHandles.Lookup`, `java.lang.reflect` (except `Array`), `kotlin.reflect.full` / `kotlin.reflect.jvm`, or `call` / `callBy` on any `kotlin.reflect` type. Such a class is assumed to reach its own package and the packages below it. A change in a listed package, or below it, reaches every class that uses reflection, wherever it lives.
+- `alwaysRun`: test classes that run whatever changed. A pattern is made of letters, digits, `_`, `$`, `.` and `*`, where `*` matches any sequence including dots. A pattern without a dot matches the simple class name.
+
+Both accept at most 1000 entries of at most 512 characters. Invalid entries fail the build with a message naming the property and the entry. The values take effect once selection runs; today the plugin selects nothing.
 
 ## How tests are selected
 
@@ -50,6 +66,10 @@ Early development. The plugin applies, but it selects nothing yet, so every test
 
 - Gradle 9.0 or newer
 - JDK 17 or newer
+
+## Analysis cache
+
+Class files are analysed once and the result is cached in `build/testimpact/class-cache` under the build's settings directory, keyed by the content of each class file. A cache written by another plugin version, or a damaged file, is rebuilt without a warning. A cache file unused for 7 days is deleted. To clear the cache, delete that directory; a `clean` task of the root project does not necessarily remove it.
 
 ## Build
 

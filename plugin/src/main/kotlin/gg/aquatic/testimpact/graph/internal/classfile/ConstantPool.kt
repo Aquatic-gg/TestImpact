@@ -39,6 +39,26 @@ internal class ConstantPool private constructor(
         return data.startsWithAscii(offset + 2, data.u2At(offset), prefix)
     }
 
+    /**
+     * True when the Utf8 entry holds the ASCII [required] character and none of the ASCII characters in [forbidden],
+     * decided on the raw bytes without decoding. Bytes of multibyte sequences have the high bit set and never match.
+     */
+    fun utf8HasShape(index: Int, required: Char, forbidden: String): Boolean {
+        expect(index, UTF8)
+        val offset = offsets[index]
+        val start = offset + 2
+        val end = start + data.u2At(offset)
+        var found = false
+        for (position in start until end) {
+            val byte = data.u1At(position)
+            if (byte >= 0x80) continue
+            val char = byte.toChar()
+            if (forbidden.indexOf(char) >= 0) return false
+            if (char == required) found = true
+        }
+        return found
+    }
+
     /** Internal name (`p/Outer$Inner`) of a CONSTANT_Class entry exactly as stored, arrays included. */
     fun classInternalName(index: Int): String {
         expect(index, CLASS)

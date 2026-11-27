@@ -14,6 +14,15 @@ gradlePlugin {
     }
 }
 
+val pluginVersionProperties = tasks.register<WriteProperties>("pluginVersionProperties") {
+    destinationFile = layout.buildDirectory.file("generated/plugin-version/gg/aquatic/testimpact/plugin.properties")
+    property("version", project.version.toString())
+}
+
+sourceSets.main {
+    resources.srcDir(files(layout.buildDirectory.dir("generated/plugin-version")).builtBy(pluginVersionProperties))
+}
+
 testing {
     suites {
         named<JvmTestSuite>("test") {
@@ -43,8 +52,21 @@ kotlin.target.compilations.named("functionalTest") {
     associateWith(kotlin.target.compilations.getByName("main"))
 }
 
+tasks.test {
+    useJUnitPlatform { excludeTags("benchmark") }
+}
+
+val benchmarkTest = tasks.register<Test>("benchmarkTest") {
+    description = "Runs the timing benchmarks excluded from test."
+    group = "verification"
+    testClassesDirs = sourceSets.test.get().output.classesDirs
+    classpath = sourceSets.test.get().runtimeClasspath
+    useJUnitPlatform { includeTags("benchmark") }
+    shouldRunAfter(tasks.test)
+}
+
 tasks.named("check") {
-    dependsOn(testing.suites.named("functionalTest"))
+    dependsOn(testing.suites.named("functionalTest"), benchmarkTest)
 }
 
 tasks.test {
