@@ -52,11 +52,14 @@ kotlin.target.compilations.named("functionalTest") {
     associateWith(kotlin.target.compilations.getByName("main"))
 }
 
+class ReadmeArgumentProvider(@get:InputFile @get:PathSensitive(PathSensitivity.RELATIVE) val readme: RegularFile) :
+    CommandLineArgumentProvider {
+    override fun asArguments(): Iterable<String> = listOf("-Dtestimpact.readme=${readme.asFile.absolutePath}")
+}
+
 tasks.test {
     useJUnitPlatform { excludeTags("benchmark") }
-    val readme = layout.settingsDirectory.file("README.md")
-    inputs.file(readme).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("readme")
-    systemProperty("testimpact.readme", readme.asFile.absolutePath)
+    jvmArgumentProviders.add(ReadmeArgumentProvider(layout.settingsDirectory.file("README.md")))
 }
 
 val benchmarkTest = tasks.register<Test>("benchmarkTest") {

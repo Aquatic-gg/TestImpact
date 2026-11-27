@@ -15,7 +15,8 @@ import java.util.concurrent.Callable
  * resolved when the cache entry is stored.
  *
  * Every Kotlin or Java file below the settings directory counts as a source, so a changed file of any module is
- * mapped to its classes. Resource and compiled class directories of the other projects come from a bounded layout
+ * mapped to its classes, except the build logic: buildSrc, build-logic, gradle and nested builds (a directory with its
+ * own settings file) count as build logic and force a full run. Resource and compiled class directories of the other projects come from a bounded layout
  * scan, because project dependencies reach a classpath as jars that hide their class files. Anything the scan misses
  * is reported as unresolved and selects a full run.
  *
