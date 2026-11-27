@@ -10,7 +10,11 @@ import java.nio.file.Path
  */
 internal object ClasspathPartition {
 
-    fun split(testClassesDirs: Collection<Path>, classpath: Collection<Path>, excludedRoots: Collection<Path>): ClasspathSplit {
+    fun split(
+        testClassesDirs: Collection<Path>,
+        classpath: Collection<Path>,
+        excludedRoots: Collection<Path>,
+    ): ClasspathSplit {
         val testRoots = testClassesDirs.map(::normalise).filter { Files.isDirectory(it) }.distinct()
         val tests = testRoots.toSet()
         val excluded = excludedRoots.map(::normalise)

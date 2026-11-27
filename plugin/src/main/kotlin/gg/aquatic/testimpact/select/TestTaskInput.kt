@@ -8,7 +8,8 @@ import java.nio.file.Path
  * @property testRoots class directories of the task's own tests; only classes found here can be selected.
  * @property otherRoots every other scanned classpath entry (main outputs, fixtures, project jars, file dependencies).
  * @property engines class names of the JUnit Platform engines found on the classpath.
- * @property globalClasses classes of the task's own roots registered for a global JUnit Platform or Jupiter extension point.
+ * @property globalClasses classes of the task's own roots registered for a global JUnit Platform or Jupiter
+ * extension point.
  */
 internal data class TestTaskInput(
     val taskPath: String,

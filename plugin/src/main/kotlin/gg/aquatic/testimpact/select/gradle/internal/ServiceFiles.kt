@@ -46,7 +46,9 @@ internal object ServiceFiles {
                 val found = zip.getEntry(entry)
                 if (found == null || found.isDirectory) return null
                 val bytes = zip.getInputStream(found).use { it.readNBytes(MAX_FILE_BYTES + 1) }
-                if (bytes.size > MAX_FILE_BYTES) throw IOException("service file larger than $MAX_FILE_BYTES bytes: $jar!/$entry")
+                if (bytes.size > MAX_FILE_BYTES) {
+                    throw IOException("service file larger than $MAX_FILE_BYTES bytes: $jar!/$entry")
+                }
                 return bytes
             }
         } catch (e: ZipException) {

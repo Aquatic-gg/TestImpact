@@ -19,12 +19,6 @@ internal class ReachResult(
     /** Selected candidate names, sorted. */
     val selected: List<String> = selectedAt.keys.sorted()
 
-    /** True when the walk visited [name]; a walk that stopped early has not visited every reachable class. */
-    fun isReached(name: String): Boolean {
-        val index = classes.binarySearch(name)
-        return index >= 0 && parent[index] != UNVISITED
-    }
-
     /** Shortest path to the class through which [candidate] was first reached; null for an unselected name. */
     fun pathTo(candidate: String): ReachPath? = selectedAt[candidate]?.let(::buildPath)
 

@@ -25,7 +25,8 @@ internal class TestCandidates private constructor(
         private const val ACC_ANNOTATION = 0x2000
         private const val ACC_ENUM = 0x4000
         private const val ACC_MODULE = 0x8000
-        private const val EXCLUDED = ACC_INTERFACE or ACC_ABSTRACT or ACC_SYNTHETIC or ACC_ANNOTATION or ACC_ENUM or ACC_MODULE
+        private const val EXCLUDED =
+            ACC_INTERFACE or ACC_ABSTRACT or ACC_SYNTHETIC or ACC_ANNOTATION or ACC_ENUM or ACC_MODULE
 
         /**
          * @param testRootClasses every class name scanned from the test roots, nested classes included.
@@ -46,8 +47,8 @@ internal class TestCandidates private constructor(
         }
 
         /**
-         * Every scanned class that is a test itself or inherits from one. Computed with worklists over reverse edges, so
-         * hostile supertype or annotation cycles cannot recurse and every class is visited once.
+         * Every scanned class that is a test itself or inherits from one. Computed with worklists over reverse edges,
+         * so hostile supertype or annotation cycles cannot recurse and every class is visited once.
          */
         private fun recognisedClasses(graph: DependencyGraph): Set<String> {
             val markedAnnotations = markedAnnotations(graph)

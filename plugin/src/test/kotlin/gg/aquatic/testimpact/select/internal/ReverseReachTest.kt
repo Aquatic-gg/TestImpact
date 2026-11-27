@@ -9,9 +9,8 @@ import gg.aquatic.testimpact.select.internal.FactsBuilder.facts
 import gg.aquatic.testimpact.select.internal.FactsBuilder.graph
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 class ReverseReachTest {
 
@@ -118,8 +117,8 @@ class ReverseReachTest {
         val result = ReverseReach.reach(graph, listOf(seed("m.A")), setOf("t.T", "t.Other"))
         assertEquals(listOf("t.T"), result.selected)
         assertNull(result.pathTo("t.Other"))
-        assertTrue(result.isReached("m.B"))
-        assertFalse(result.isReached("t.Other"))
+        assertNotNull(result.pathToClass("m.B"))
+        assertNull(result.pathToClass("t.Other"))
     }
 
     @Test
