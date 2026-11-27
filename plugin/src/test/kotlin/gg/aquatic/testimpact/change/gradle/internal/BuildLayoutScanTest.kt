@@ -67,6 +67,44 @@ class BuildLayoutScanTest {
     }
 
     @Test
+    fun `a directory with its own settings file is a nested build and nothing is collected from it`() {
+        project("a")
+        dir("a/src/main/resources")
+        project("conventions")
+        root.resolve("conventions/settings.gradle.kts").writeText("")
+        dir("conventions/src/main/resources")
+        dir("conventions/build/classes/kotlin/main")
+        project("conventions/inner")
+        dir("conventions/inner/src/main/resources")
+
+        val layout = BuildLayoutScan.scan(root)
+
+        assertEquals(listOf("a/src/main/resources"), relative(layout.resourceRoots))
+        assertEquals(emptyList(), layout.classOutputDirs)
+        assertEquals(listOf("conventions"), relative(layout.buildLogicRoots))
+    }
+
+    @Test
+    fun `the settings file of the root itself does not make it a nested build`() {
+        root.resolve("settings.gradle.kts").writeText("")
+        project("a")
+        dir("a/src/main/resources")
+
+        val layout = BuildLayoutScan.scan(root)
+
+        assertEquals(listOf("a/src/main/resources"), relative(layout.resourceRoots))
+        assertEquals(emptyList(), layout.buildLogicRoots)
+    }
+
+    @Test
+    fun `a directory that cannot be listed is skipped`() {
+        val file = root.resolve("not-a-directory")
+        file.writeText("")
+
+        assertEquals(emptyList(), BuildLayoutScan.scan(file).resourceRoots)
+    }
+
+    @Test
     fun `the scan stops at the directory cap`() {
         for (name in listOf("a", "b", "c")) {
             project(name)

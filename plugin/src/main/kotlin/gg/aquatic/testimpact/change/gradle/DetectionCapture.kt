@@ -41,11 +41,13 @@ internal class DetectionCapture private constructor(
             sourceRoots = (listOf(root) + sourceDirs.files.map(File::toPath)).distinct(),
             resourceRoots = (resourceDirs.files.map(File::toPath) + layout.resourceRoots).distinct(),
             classOutputDirs = (classpathDirs + layout.classOutputDirs).distinct(),
-            buildLogicRoots = emptyList(),
+            buildLogicRoots = (BUILD_LOGIC_DIRECTORIES.map(root::resolve) + layout.buildLogicRoots).distinct(),
         )
     }
 
     companion object {
+        private val BUILD_LOGIC_DIRECTORIES = listOf("buildSrc", "build-logic", "gradle")
+
         fun of(project: Project): DetectionCapture {
             val sourceSets = Callable { project.extensions.findByType(JavaPluginExtension::class.java)?.sourceSets.orEmpty() }
             val sources = project.objects.fileCollection().from(Callable { sourceSets.call().flatMap { it.allJava.srcDirs } })

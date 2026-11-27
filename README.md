@@ -118,8 +118,8 @@ tasks[].rule.text | string | sentence for the reason
 tasks[].rule.detail | string | what triggered it
 tasks[].counts | object? | set when the result is `selected`
 tasks[].counts.selected | number | selected test classes
-tasks[].counts.recognised | number | selected classes recognised as tests
-tasks[].counts.candidates | number | test classes of the task
+tasks[].counts.recognised | number | candidates identified as tests by framework markers, over all candidate classes of the test roots
+tasks[].counts.candidates | number | concrete top-level classes of the test roots
 tasks[].tests | array | selected test classes, sorted by name; empty for a full run
 tasks[].tests[].className | string | binary class name
 tasks[].tests[].reason | string | REACHED or GLOBAL

@@ -54,6 +54,9 @@ kotlin.target.compilations.named("functionalTest") {
 
 tasks.test {
     useJUnitPlatform { excludeTags("benchmark") }
+    val readme = layout.settingsDirectory.file("README.md")
+    inputs.file(readme).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("readme")
+    systemProperty("testimpact.readme", readme.asFile.absolutePath)
 }
 
 val benchmarkTest = tasks.register<Test>("benchmarkTest") {

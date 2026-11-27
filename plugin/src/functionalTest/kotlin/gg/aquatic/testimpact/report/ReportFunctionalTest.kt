@@ -81,12 +81,10 @@ class ReportFunctionalTest {
     @Suppress("UNCHECKED_CAST")
     private fun tests(task: Map<String, Any?>): List<Map<String, Any?>> = task["tests"] as List<Map<String, Any?>>
 
-    @Suppress("UNCHECKED_CAST")
-    private fun withoutDurations(value: Any?): Any? = when (value) {
-        is Map<*, *> -> (value as Map<String, Any?>).filterKeys { it != "durationsMs" }.mapValues { withoutDurations(it.value) }
-        is List<*> -> value.map(::withoutDurations)
-        else -> value
-    }
+    private val durations = Regex(""""durationsMs":\s*\{[^}]*\}""")
+
+    private fun maskedJson(module: String): String =
+        durations.replace(Files.readString(projectDir.resolve("$module/build/reports/testimpact/report.json")), "\"durationsMs\":{}")
 
     @Test
     @Order(1)
@@ -150,17 +148,17 @@ class ReportFunctionalTest {
     @Order(3)
     fun `the report is stable, leaks no absolute path and works with the configuration cache and isolated projects`() {
         report("--base", "main")
-        val first = MultiModuleFixture.modules.associateWith { withoutDurations(json(it)) }
+        val first = MultiModuleFixture.modules.associateWith(::maskedJson)
         val firstTexts = MultiModuleFixture.modules.associateWith { text(it).lines().first() }
 
         val second = report("--base", "main")
         assertTrue("Reusing configuration cache" in second.output, second.output)
-        assertEquals(first, MultiModuleFixture.modules.associateWith { withoutDurations(json(it)) })
+        assertEquals(first, MultiModuleFixture.modules.associateWith(::maskedJson))
         assertEquals(firstTexts, MultiModuleFixture.modules.associateWith { text(it).lines().first() })
 
         val isolated = report("--base", "main", "-Dorg.gradle.unsafe.isolated-projects=true")
         assertFalse("gg.aquatic.testimpact" in isolated.output, isolated.output)
-        assertEquals(first, MultiModuleFixture.modules.associateWith { withoutDurations(json(it)) })
+        assertEquals(first, MultiModuleFixture.modules.associateWith(::maskedJson))
 
         val forbidden = listOf(projectDir.toString(), projectDir.toRealPath().toString(), System.getProperty("user.home"))
             .flatMap { listOf(it, it.replace('\\', '/'), it.replace("\\", "\\\\")) }

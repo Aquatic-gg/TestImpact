@@ -19,9 +19,8 @@ internal object ReportTasks {
         }
         project.afterEvaluate {
             val userHome = project.gradle.gradleUserHomeDir
-            val tests = project.tasks.withType(Test::class.java).toList()
             report.configure { task ->
-                for (test in tests) {
+                for (test in project.tasks.withType(Test::class.java).toList()) {
                     task.captures.add(TestTaskCapture.of(test, project.providers, project.objects, userHome))
                     task.runtimeFiles.from(test.testClassesDirs, test.classpath)
                 }

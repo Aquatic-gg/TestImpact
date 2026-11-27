@@ -65,7 +65,7 @@ class ReportSchemaTest {
         return fields
     }
 
-    private fun readme(): Path = listOf(Path.of("../README.md"), Path.of("README.md")).first(Files::isRegularFile)
+    private fun readme(): Path = Path.of(requireNotNull(System.getProperty("testimpact.readme")) { "testimpact.readme is not set" })
 
     @Test
     fun `the readme field table equals the fields of the json`() {

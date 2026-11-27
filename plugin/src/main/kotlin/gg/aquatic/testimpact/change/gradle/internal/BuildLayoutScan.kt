@@ -1,6 +1,8 @@
 package gg.aquatic.testimpact.change.gradle.internal
 
 import java.io.IOException
+import java.io.UncheckedIOException
+import java.nio.file.DirectoryIteratorException
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
@@ -13,6 +15,9 @@ import java.util.TreeSet
  * project; the `resources` directory of each of its source sets and every directory two levels below its
  * `build/classes` are collected when they exist.
  *
+ * A directory below the root with its own settings file is a nested (included) build: it is reported as a build logic
+ * root and nothing is collected from it, so a change inside it stays unmapped and selects a full run.
+ *
  * The walk skips hidden directories, `build`, `src` and `node_modules`, never follows links and stops at
  * [MAX_DEPTH] levels or [MAX_DIRECTORIES] visited directories. What the scan misses stays unresolved in change
  * detection, which makes the affected tasks run in full, so a cap costs time and never soundness.
@@ -23,25 +28,31 @@ internal object BuildLayoutScan {
     const val MAX_DIRECTORIES = 20_000
 
     private val SCRIPTS = listOf("build.gradle", "build.gradle.kts")
+    private val SETTINGS = listOf("settings.gradle", "settings.gradle.kts")
     private val PRUNED = setOf("build", "src", "node_modules")
 
-    /** Both lists are sorted. */
-    data class Layout(val resourceRoots: List<Path>, val classOutputDirs: List<Path>)
+    /** All lists are sorted. [buildLogicRoots] are the nested builds, which are never entered. */
+    data class Layout(val resourceRoots: List<Path>, val classOutputDirs: List<Path>, val buildLogicRoots: List<Path>)
 
     fun scan(root: Path, maxDepth: Int = MAX_DEPTH, maxDirectories: Int = MAX_DIRECTORIES): Layout {
         val walk = Walk(maxDepth, maxDirectories)
         walk.visit(root, 0)
-        return Layout(walk.resources.toList(), walk.classes.toList())
+        return Layout(walk.resources.toList(), walk.classes.toList(), walk.nestedBuilds.toList())
     }
 
     private class Walk(private val maxDepth: Int, private val maxDirectories: Int) {
         val resources = TreeSet<Path>()
         val classes = TreeSet<Path>()
+        val nestedBuilds = TreeSet<Path>()
         private var visited = 0
 
         fun visit(directory: Path, depth: Int) {
             if (visited >= maxDirectories) return
             visited++
+            if (depth > 0 && SETTINGS.any { Files.isRegularFile(directory.resolve(it)) }) {
+                nestedBuilds.add(directory)
+                return
+            }
             if (SCRIPTS.any { Files.isRegularFile(directory.resolve(it)) }) collect(directory)
             if (depth >= maxDepth) return
             for (child in children(directory)) {
@@ -72,6 +83,10 @@ internal object BuildLayoutScan {
                     return stream.filter(::isPlainDirectory).sorted()
                 }
             } catch (_: IOException) {
+                return emptyList()
+            } catch (_: DirectoryIteratorException) {
+                return emptyList()
+            } catch (_: UncheckedIOException) {
                 return emptyList()
             }
         }
