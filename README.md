@@ -37,7 +37,7 @@ testImpact {
 }
 ```
 
-- `dynamicPackages`: packages whose classes are loaded or called by name in ways bytecode cannot show. A class counts as reflecting when it calls `Class.forName` or another `Class` or `ClassLoader` lookup by name, `ServiceLoader`, `MethodHandles.Lookup`, `java.lang.reflect`, or `kotlin.reflect.full` / `kotlin.reflect.jvm`. Such a class is assumed to reach its own package and the packages below it. A change in a listed package, or below it, reaches every class that uses reflection, wherever it lives.
+- `dynamicPackages`: packages whose classes are loaded or called by name in ways bytecode cannot show. A class counts as reflecting when it calls `Class.forName` or another `Class` or `ClassLoader` lookup by name, `ServiceLoader`, `MethodHandles.Lookup`, `java.lang.reflect` (except `Array`), `kotlin.reflect.full` / `kotlin.reflect.jvm`, or `call` / `callBy` on any `kotlin.reflect` type. Such a class is assumed to reach its own package and the packages below it. A change in a listed package, or below it, reaches every class that uses reflection, wherever it lives.
 - `alwaysRun`: test classes that run whatever changed. A pattern is made of letters, digits, `_`, `$`, `.` and `*`, where `*` matches any sequence including dots. A pattern without a dot matches the simple class name.
 
 Both accept at most 1000 entries of at most 512 characters. Invalid entries fail the build with a message naming the property and the entry. The values take effect once selection runs; today the plugin selects nothing.
