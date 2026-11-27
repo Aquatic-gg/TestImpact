@@ -53,6 +53,46 @@ internal class DependencyGraph private constructor(private val byName: Map<Strin
         return found.map { Edge(it.key, name, it.value) }.sortedWith(compareBy({ it.from }, { it.kind }))
     }
 
+    /** Dependents of [name] that come from its own facts only, sorted by class name, lowest [EdgeKind] per pair. */
+    fun explicitDependentsOf(name: String): List<Edge> {
+        val edges = explicitDependents[name] ?: return emptyList()
+        val found = HashMap<String, EdgeKind>()
+        for (edge in edges) found.merge(edge.from, edge.kind) { a, b -> if (a <= b) a else b }
+        return found.map { Edge(it.key, name, it.value) }.sortedBy { it.from }
+    }
+
+    /** The constant and typealias scopes [name] defines, without expanding them; see [ScopeGroup]. */
+    fun scopeGroups(name: String): List<ScopeGroup> {
+        val facts = byName[name] ?: return emptyList()
+        val groups = ArrayList<ScopeGroup>(2)
+        facts.constantScope?.let { groups.addAll(scopeGroup(name, it, EdgeKind.CONSTANT)) }
+        facts.typeAliasScope?.let { groups.addAll(scopeGroup(name, it, EdgeKind.TYPEALIAS)) }
+        return groups
+    }
+
+    /** A file scope is two groups, the source file and the owner class, so definers sharing a file expand it once. */
+    private fun scopeGroup(definer: String, scope: ReachScope, kind: EdgeKind): List<ScopeGroup> {
+        val kotlinOnly = kind == EdgeKind.TYPEALIAS
+        fun group(key: String, members: () -> List<String>) = ScopeGroup(key, kind) {
+            if (kotlinOnly) members().filter { byName[it]?.isKotlin == true } else members()
+        }
+        return when (scope) {
+            ReachScope.ALL -> listOf(group("A") { classes })
+            ReachScope.PACKAGE -> {
+                val pkg = packageOf(definer)
+                listOf(group("P:$pkg") { inPackage[pkg].orEmpty() })
+            }
+            ReachScope.FILE -> {
+                val owner = owner(definer)
+                val source = sources[definer]
+                listOfNotNull(
+                    source?.let { key -> group("S:$key") { inSource[key].orEmpty() } },
+                    group("O:$owner") { ownedBy(owner) },
+                )
+            }
+        }
+    }
+
     /**
      * The top-level class [name] is declared in, found by following [ClassFacts.outer]; [name] itself for a
      * top-level class or an unscanned one. An outer chain that loops resolves to the smallest name of the loop.

@@ -48,6 +48,10 @@ testing {
 
 gradlePlugin.testSourceSets.add(sourceSets["functionalTest"])
 
+kotlin.target.compilations.named("functionalTest") {
+    associateWith(kotlin.target.compilations.getByName("main"))
+}
+
 tasks.test {
     useJUnitPlatform { excludeTags("benchmark") }
 }

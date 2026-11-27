@@ -90,7 +90,8 @@ internal class GitRepository(private val runner: GitRunner) {
         var copy: Path? = null
         try {
             copy = Files.createTempFile("testimpact-index", ".tmp")
-            Files.copy(index, copy, StandardCopyOption.REPLACE_EXISTING)
+            // Git decides which stat-clean entries are racily clean by the index file's own timestamp, so the copy keeps it.
+            Files.copy(index, copy, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES)
             return block(mapOf("GIT_INDEX_FILE" to copy.toString()))
         } catch (e: IOException) {
             throw GitFailure(UnknownReason.GIT_FAILED, "cannot copy the index: ${e.message}".take(MAX_DETAIL))
