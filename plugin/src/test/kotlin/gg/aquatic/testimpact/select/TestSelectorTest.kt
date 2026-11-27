@@ -132,6 +132,14 @@ class TestSelectorTest {
     }
 
     @Test
+    fun `an unverified seed whose source file only exists in a relocated package cannot be mapped`() {
+        val others = graph(facts("q.p.Foo", sourceFile = "Foo.kt"))
+        val seeds = SeedSet(listOf(Seed("lib/Foo.kt", listOf("p.Foo"), listOf("p/Foo.kt"), true)))
+        val result = unknown(TestSelector.select(input(), seeds, scanner(graph(facts("t.T")), others)))
+        assertEquals(SelectionUnknownReason.CHANGE_NOT_MAPPED, result.reason)
+    }
+
+    @Test
     fun `an unverified seed with only some classes in the graph cannot be mapped`() {
         val others = graph(facts("m.Core"))
         val seeds = SeedSet(listOf(Seed("lib/Core.kt", listOf("m.Core", "m.Gone"), listOf("m/Core.kt"), true)))

@@ -21,15 +21,23 @@ internal class ApplySelection(
     private val selection: Provider<RegularFile>,
     private val inputs: Provider<SelectionInputsService>,
     private val baseline: Set<String>,
+    private val lifecycle: (String) -> Unit = { Logging.getLogger(ApplySelection::class.java).lifecycle(it) },
 ) : Action<Task> {
     override fun execute(task: Task) {
         val test = task as? Test ?: return
-        if (!SelectionGate.applies(test, inputs.get(), baseline)) return
+        val service = inputs.get()
+        if (!SelectionGate.applies(test, service, baseline)) {
+            if (service.hasSelected(test.path)) {
+                lifecycle(
+                    "TestImpact ${task.path}: the test filter was changed after configuration, the task is not narrowed and runs as requested",
+                )
+            }
+            return
+        }
         val classes = try {
             SelectionFile.read(selection.get().asFile.toPath())
         } catch (e: Exception) {
-            Logging.getLogger(ApplySelection::class.java)
-                .warn("TestImpact {}: the selection could not be read, the task runs in full ({})", task.path, e.message)
+            Logging.getLogger(ApplySelection::class.java).warn("TestImpact {}: the selection could not be read, the task runs in full ({})", task.path, e.message)
             return
         }
         if (classes.isNullOrEmpty()) return

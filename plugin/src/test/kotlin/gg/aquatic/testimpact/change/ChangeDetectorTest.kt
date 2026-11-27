@@ -280,6 +280,7 @@ class ChangeDetectorTest {
             input(repo, "main").copy(
                 classOutputDirs = listOf(classes),
                 sourceRoots = listOf(repo.dir.resolve("own/src/main/java")),
+                ownSourceRoots = listOf(repo.dir.resolve("own/src/main/java")),
                 conventionalRoots = true,
             ),
             repo.env,
@@ -290,6 +291,27 @@ class ChangeDetectorTest {
         assertEquals(false, far?.classesCompiled)
         assertEquals(listOf("q.Far"), far?.classes)
         assertEquals(false, known.file("own/src/main/java/q/Near.java").after?.classesResolved)
+    }
+
+    @Test
+    fun sourceRootOfAnotherSourceSetIsLeftToTheClassGraph() = withFeature { repo ->
+        val classes = repo.dir.resolve("build/classes")
+        Files.createDirectories(classes)
+        repo.write("src/functionalTest/java/q/Other.java", "package q;\n\npublic class Other {}\n")
+        repo.write("src/main/java/q/Mine.java", "package q;\n\npublic class Mine {}\n")
+        val detection = ChangeDetector.detect(
+            input(repo, "main").copy(
+                classOutputDirs = listOf(classes),
+                sourceRoots = listOf(repo.dir.resolve("src/functionalTest/java"), repo.dir.resolve("src/main/java")),
+                ownSourceRoots = listOf(repo.dir.resolve("src/main/java")),
+            ),
+            repo.env,
+        )
+        val known = known(detection)
+        val other = known.file("src/functionalTest/java/q/Other.java").after
+        assertEquals(true, other?.classesResolved)
+        assertEquals(false, other?.classesCompiled)
+        assertEquals(false, known.file("src/main/java/q/Mine.java").after?.classesResolved)
     }
 
     @Test
@@ -304,6 +326,7 @@ class ChangeDetectorTest {
             input(repo, "main").copy(
                 classOutputDirs = listOf(elsewhere),
                 sourceRoots = listOf(repo.dir.resolve("own/src/main/java")),
+                ownSourceRoots = listOf(repo.dir.resolve("own/src/main/java")),
                 conventionalRoots = true,
             ),
             repo.env,
@@ -426,7 +449,7 @@ class ChangeDetectorTest {
     }
 
     @Test
-    fun inheritedRepositoryEnvironmentIsIgnored()= withFeature { repo ->
+    fun inheritedRepositoryEnvironmentIsIgnored() = withFeature { repo ->
         val other = repo.sibling("other")
         repo.gitIn(repo.base, "init", "-q", "-b", "main", other.toString())
         compiled(repo, "p.A")

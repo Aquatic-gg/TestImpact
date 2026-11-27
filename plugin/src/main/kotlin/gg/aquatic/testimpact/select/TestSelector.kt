@@ -149,7 +149,9 @@ internal object TestSelector {
         val reachable = ArrayList<Seed>()
         for (seed in seeds.seeds) {
             if (seed.unverified) {
-                val related = seed.classes.any { graph.facts(it) != null } || seed.sourceKeys.any { it in sources }
+                // A relocated (shaded) copy keeps the file name but gains a package prefix.
+                val related = seed.classes.any { graph.facts(it) != null } ||
+                    seed.sourceKeys.any { key -> key in sources || sources.any { it.endsWith("/$key") } }
                 if (!related) continue
                 if (seed.classes.any { graph.facts(it) == null }) {
                     return unknown(

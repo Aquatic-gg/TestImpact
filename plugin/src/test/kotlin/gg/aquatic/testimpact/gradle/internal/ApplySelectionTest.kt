@@ -68,6 +68,28 @@ class ApplySelectionTest {
     }
 
     @kotlin.test.Test
+    fun `a selection that is not applied because of a late filter logs one lifecycle line`() {
+        val task = testTask()
+        val configured = baseline(task)
+        task.filter.includeTest("p.CalcTest", null)
+        inputs.get().markSelected(task.path)
+        val lines = ArrayList<String>()
+        val selection = project.provider { project.layout.projectDirectory.file(file("testimpact-selection 1\nselected\na.A\n").toString()) }
+        ApplySelection(selection, inputs, configured, lines::add).execute(task)
+        assertEquals(1, lines.size)
+        assertTrue(lines.single().startsWith("TestImpact ${task.path}:"), lines.single())
+    }
+
+    @kotlin.test.Test
+    fun `a task whose selection did not run is silent`() {
+        val task = testTask()
+        val lines = ArrayList<String>()
+        val selection = project.provider { project.layout.projectDirectory.file(file("testimpact-selection 1\nselected\na.A\n").toString()) }
+        ApplySelection(selection, inputs, baseline(task), lines::add).execute(task)
+        assertEquals(emptyList(), lines)
+    }
+
+    @kotlin.test.Test
     fun `a task whose selection did not run is neither filtered nor skipped`() {
         val task = testTask()
         apply(task, file("testimpact-selection 1\nselected\na.A\n"), ran = false)

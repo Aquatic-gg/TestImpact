@@ -69,7 +69,7 @@ internal object ChangeDetector {
             input.buildLogicRoots.mapNotNull(paths::relativize),
             input.conventionalRoots,
         )
-        val snapshots = Snapshots(read, classifier, input.classOutputDirs, input.sourceRoots)
+        val snapshots = Snapshots(read, classifier, input.classOutputDirs, input.ownSourceRoots)
 
         val files = ArrayList<ChangedFile>(read.entries.size + read.untracked.size)
         for (entry in read.entries) files += snapshots.changed(entry)

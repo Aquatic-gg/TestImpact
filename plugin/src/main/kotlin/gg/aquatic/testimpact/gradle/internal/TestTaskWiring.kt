@@ -86,6 +86,14 @@ internal object TestTaskWiring {
             task.projectDir.set(project.layout.projectDirectory)
             task.baseRef.set(extension.baseRef)
             task.sourceRoots.from(Callable { roots(sourceSets, ::sources) })
+            task.ownSourceRoots.from(
+                Callable {
+                    ownSources(
+                        sourceSets?.map { it.output.classesDirs.files to sources(it) }.orEmpty(),
+                        capture.testClassesDirs.files + capture.classpath.files,
+                    )
+                },
+            )
             task.resourceRoots.from(Callable { roots(sourceSets, ::resources) })
             task.dynamicPackages.set(extension.dynamicPackages)
             task.alwaysRun.set(extension.alwaysRun)
@@ -116,6 +124,10 @@ internal object TestTaskWiring {
 
     private fun roots(sourceSets: SourceSetContainer?, of: (SourceSet) -> Set<File>): List<File> =
         sourceSets?.flatMap(of).orEmpty()
+
+    /** The source roots of the source sets (class directories to sources) whose class output the task runs against. */
+    internal fun ownSources(sets: List<Pair<Set<File>, Set<File>>>, onPath: Set<File>): List<File> =
+        sets.filter { (classes, _) -> classes.any { it in onPath } }.flatMap { it.second }
 
     private fun sources(sourceSet: SourceSet): Set<File> {
         val kotlin = (sourceSet as ExtensionAware).extensions.findByName(KOTLIN_SOURCES) as? SourceDirectorySet

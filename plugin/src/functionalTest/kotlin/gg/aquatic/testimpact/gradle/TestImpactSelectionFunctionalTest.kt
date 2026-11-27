@@ -53,6 +53,29 @@ class TestImpactSelectionFunctionalTest {
     }
 
     @Test
+    fun `a change in another source set of the module leaves the test task skipped`() {
+        val suite = """
+            testing {
+                suites {
+                    register<JvmTestSuite>("functionalTest") {
+                        useJUnitJupiter("5.14.4")
+                        dependencies { implementation(project()) }
+                    }
+                }
+            }
+        """.trimIndent()
+        ImpactFixture.singleModule(projectDir, extra = suite)
+        ImpactFixture.file(projectDir, "src/functionalTest/java/app/FuncTest.java", ImpactFixture.test("FuncTest", "new Calc().add(1, 2);"))
+        GitFixture.init(projectDir)
+        ImpactFixture.file(projectDir, "src/functionalTest/java/app/FuncTest.java", ImpactFixture.test("FuncTest", "new Calc().add(2, 2);"))
+
+        val result = run("test")
+
+        assertEquals(TaskOutcome.SKIPPED, result.task(":test")?.outcome, result.output)
+        assertContains(result.output, "TestImpact :test: changed 1, selected 0 of 2 test classes")
+    }
+
+    @Test
     fun `tests on the command line win over the selection`() {
         ImpactFixture.singleModule(projectDir)
         GitFixture.init(projectDir)

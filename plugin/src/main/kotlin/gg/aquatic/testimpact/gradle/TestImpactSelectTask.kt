@@ -54,6 +54,10 @@ internal abstract class TestImpactSelectTask : DefaultTask() {
     @get:Internal
     abstract val sourceRoots: ConfigurableFileCollection
 
+    /** The part of [sourceRoots] whose compiled classes are on the class path of the Test task. */
+    @get:Internal
+    abstract val ownSourceRoots: ConfigurableFileCollection
+
     /** Resource directories of the project's own source sets. */
     @get:Internal
     abstract val resourceRoots: ConfigurableFileCollection
@@ -129,6 +133,7 @@ internal abstract class TestImpactSelectTask : DefaultTask() {
                 projectDir = projectDir.get().asFile.toPath(),
                 baseRef = settings.baseRef,
                 sourceRoots = sourceRoots.files.map(File::toPath),
+                ownSourceRoots = ownSourceRoots.files.map(File::toPath),
                 resourceRoots = resources,
                 classOutputDirs = input.testRoots + input.otherRoots,
                 buildLogicRoots = emptyList(),

@@ -67,6 +67,7 @@ internal abstract class SelectionInputsService : BuildService<BuildServiceParame
         input.copy(
             projectDir = normal(input.projectDir),
             sourceRoots = input.sourceRoots.map(::normal).distinct(),
+            ownSourceRoots = input.ownSourceRoots.map(::normal).distinct(),
             resourceRoots = input.resourceRoots.map(::normal).distinct(),
             classOutputDirs = input.classOutputDirs.map(::normal).distinct(),
             buildLogicRoots = input.buildLogicRoots.map(::normal).distinct(),
