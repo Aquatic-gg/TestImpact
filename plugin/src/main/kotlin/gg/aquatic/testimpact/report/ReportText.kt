@@ -45,7 +45,7 @@ internal object ReportText {
     /** `<test> <- <changed file>: <seed class> <-KIND- ... <- <reached class>` plus the reason when it is not plain. */
     fun testLine(test: ImpactReport.Test): String {
         val chain = StringBuilder(test.seedClass)
-        for (step in test.path) chain.append(" <-").append(step.kind).append("- ").append(step.from)
+        for (step in test.path) chain.append(" <-").append(step.seed ?: step.kind).append("- ").append(step.from)
         val notes = ArrayList<String>()
         if (test.reason == "GLOBAL") notes.add(ReportRules.globalText(test.reachedClass))
         if (!test.recognised) notes.add("not recognised as a test class")

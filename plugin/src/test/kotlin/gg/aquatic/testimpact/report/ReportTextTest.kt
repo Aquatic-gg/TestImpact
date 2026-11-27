@@ -6,7 +6,6 @@ import gg.aquatic.testimpact.change.ChangedFile
 import gg.aquatic.testimpact.change.FileKind
 import gg.aquatic.testimpact.change.FileSnapshot
 import gg.aquatic.testimpact.change.UnknownReason
-import gg.aquatic.testimpact.select.SeedSet
 import gg.aquatic.testimpact.select.Selection
 import gg.aquatic.testimpact.select.SelectionUnknownReason
 import kotlin.test.Test
@@ -16,7 +15,7 @@ import kotlin.test.assertTrue
 class ReportTextTest {
 
     private fun build(detection: ChangeDetection, selections: List<Selection>) =
-        ReportBuilder.build(":c", detection, SeedSet(emptyList()), selections, 3, mapOf(":c:test" to 12L), ReportFixtures.scrubber)
+        ReportFixtures.report(selections, detection, detectionMs = 3, selectionMs = mapOf(":c:test" to 12L))
 
     @Test
     fun `known changes with a selected and a full task`() {
@@ -42,10 +41,13 @@ class ReportTextTest {
 
     @Test
     fun `unknown changes name the reason and detail`() {
-        val report = build(ChangeDetection.Unknown(UnknownReason.DETACHED_HEAD, "HEAD is detached"), emptyList())
+        val unknown = Selection.Unknown(":c:test", SelectionUnknownReason.CHANGES_UNKNOWN, "HEAD is detached")
+        val report = build(ChangeDetection.Unknown(UnknownReason.DETACHED_HEAD, "HEAD is detached"), listOf(unknown))
 
         assertEquals(
-            "changes unknown: DETACHED_HEAD: HEAD is detached\nanalysis 3 ms (detection 3 ms, selection 0 ms)\n",
+            "changes unknown: DETACHED_HEAD: HEAD is detached\n" +
+                ":c:test full run: changes could not be determined (CHANGES_UNKNOWN): HEAD is detached\n" +
+                "analysis 15 ms (detection 3 ms, selection 12 ms)\n",
             ReportText.render(report),
         )
     }
@@ -58,7 +60,7 @@ class ReportTextTest {
         }
         val detection = ChangeDetection.Known("main", "a".repeat(40), "b".repeat(40), files)
 
-        val lines = ReportText.render(build(detection, emptyList())).lines()
+        val lines = ReportText.render(build(detection, listOf(ReportFixtures.known(":c:test", emptyList())))).lines()
 
         assertEquals("base main aaaaaaa merge-base bbbbbbb: 53 changed files", lines.first())
         assertEquals(50, lines.count { it.startsWith("  f/") })

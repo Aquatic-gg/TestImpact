@@ -33,6 +33,19 @@ internal class GitRepository(private val runner: GitRunner) {
             GitRead.Failed(ChangeDetection.Unknown(UnknownReason.ANALYSIS_ERROR, e.message.orEmpty().take(MAX_DETAIL)))
         }
 
+    /** The top-level directory of the work tree around [projectDir], or null when there is none. Never throws. */
+    fun topLevel(projectDir: Path): Path? {
+        if (!Files.isDirectory(projectDir)) return null
+        return try {
+            val result = runner.run(projectDir, listOf("rev-parse", "--show-toplevel"))
+            if (result.exitCode != 0) null else Path.of(text(result.stdout).removeSuffix("\n"))
+        } catch (_: GitFailure) {
+            null
+        } catch (_: InvalidPathException) {
+            null
+        }
+    }
+
     private fun readOrFail(projectDir: Path, requestedBase: String?, wantsBlob: (Path, String) -> Boolean): GitRead.Ok {
         if (!Files.isDirectory(projectDir)) fail(UnknownReason.NOT_A_REPOSITORY, "no such directory: $projectDir")
         val top = runner.run(projectDir, listOf("rev-parse", "--show-toplevel"))
@@ -51,8 +64,12 @@ internal class GitRepository(private val runner: GitRunner) {
         }
 
         val symbolic = runner.run(topLevel, listOf("symbolic-ref", "-q", "HEAD"))
-        if (symbolic.exitCode == 1) fail(UnknownReason.DETACHED_HEAD, "HEAD is not on a branch")
-        if (symbolic.exitCode != 0) fail(UnknownReason.GIT_FAILED, symbolic.detail.ifEmpty { "symbolic-ref failed" })
+        // A detached HEAD is what pull-request checkouts of CI systems look like. Only a base the user named is
+        // trusted there: the default candidates are guesses that suit a checked-out branch.
+        if (symbolic.exitCode == 1 && requestedBase == null) fail(UnknownReason.DETACHED_HEAD, "HEAD is not on a branch")
+        if (symbolic.exitCode != 0 && symbolic.exitCode != 1) {
+            fail(UnknownReason.GIT_FAILED, symbolic.detail.ifEmpty { "symbolic-ref failed" })
+        }
 
         resolveCommit(topLevel, "HEAD") ?: fail(UnknownReason.NO_HEAD_COMMIT, "HEAD has no commit")
 

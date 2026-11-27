@@ -5,9 +5,14 @@ import gg.aquatic.testimpact.change.ChangeStatus
 import gg.aquatic.testimpact.change.ChangedFile
 import gg.aquatic.testimpact.change.FileKind
 import gg.aquatic.testimpact.change.FileSnapshot
+import gg.aquatic.testimpact.gradle.internal.SelectionDecision
+import gg.aquatic.testimpact.gradle.internal.SelectionOutcome
+import gg.aquatic.testimpact.gradle.internal.SelectionSettings
+import gg.aquatic.testimpact.gradle.internal.TestImpactMode
 import gg.aquatic.testimpact.graph.Edge
 import gg.aquatic.testimpact.graph.EdgeKind
 import gg.aquatic.testimpact.select.ReachPath
+import gg.aquatic.testimpact.select.SeedSet
 import gg.aquatic.testimpact.select.SelectReason
 import gg.aquatic.testimpact.select.SelectedTest
 import gg.aquatic.testimpact.select.Selection
@@ -52,4 +57,28 @@ internal object ReportFixtures {
 
     fun known(taskPath: String, tests: List<SelectedTest>, candidates: Int = 2) =
         Selection.Known(taskPath, tests, recognisedCount = candidates, candidateCount = candidates)
+
+    /**
+     * The report of runs that all read [detection] and [seeds], decided with the default settings in mode `auto`. The
+     * first task (by path) carries [detectionMs], so the report's detection time equals it.
+     */
+    fun report(
+        selections: List<Selection>,
+        detection: ChangeDetection = changedCore(),
+        seeds: SeedSet = SeedSet(emptyList()),
+        detectionMs: Long = 0,
+        selectionMs: Map<String, Long> = emptyMap(),
+        scrubber: PathScrubber = this.scrubber,
+        project: String = ":c",
+        settings: SelectionSettings = SelectionSettings.of(null, 60, 12, emptySet(), emptySet()),
+    ): ImpactReport {
+        val first = selections.minOfOrNull { it.taskPath }
+        val outcomes = selections.map { selection ->
+            val detected = if (selection.taskPath == first) detectionMs else 0L
+            val millis = detected + (selectionMs[selection.taskPath] ?: 0L)
+            val decision = SelectionDecision.decide(selection, detection, settings, TestImpactMode.AUTO, false, millis)
+            SelectionOutcome(decision, detection, seeds, selection, detected)
+        }
+        return ReportBuilder.build(project, outcomes, scrubber)
+    }
 }

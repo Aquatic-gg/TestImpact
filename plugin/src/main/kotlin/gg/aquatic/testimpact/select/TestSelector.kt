@@ -5,6 +5,11 @@ import gg.aquatic.testimpact.graph.ClassGraphScanner
 import gg.aquatic.testimpact.graph.ClassProblem
 import gg.aquatic.testimpact.graph.DependencyGraph
 import gg.aquatic.testimpact.graph.EdgeKind
+import gg.aquatic.testimpact.seed.SeedGraph
+import gg.aquatic.testimpact.seed.SeedInputs
+import gg.aquatic.testimpact.seed.SeedResult
+import gg.aquatic.testimpact.seed.SeedRules
+import gg.aquatic.testimpact.seed.SeedScanner
 import gg.aquatic.testimpact.select.gradle.TestTaskCapture
 import gg.aquatic.testimpact.select.internal.EngineCatalog
 import gg.aquatic.testimpact.select.internal.ReachResult
@@ -21,6 +26,7 @@ import java.nio.file.Path
  */
 internal object TestSelector {
     private const val MAX_PROBLEMS = 20
+    private val DEFAULT_SEED_SCAN: (List<Path>) -> SeedResult = { SeedScanner.scan(it, emptyList()) }
 
     /**
      * @param input classpath roots, framework and engines of the task, already resolved.
@@ -31,11 +37,24 @@ internal object TestSelector {
         input: TestTaskInput,
         seeds: SeedSet,
         scan: (List<Path>) -> ClassGraphResult = { ClassGraphScanner.scan(it) },
+    ): Selection = select(input, seeds, scan, SeedRules.NONE, DEFAULT_SEED_SCAN)
+
+    /**
+     * As above, also following the links bytecode does not show: [seedScan] reads the roots into seed facts, [rules]
+     * adds the user's dynamic packages and the test classes that always run. An unreadable seed scan is
+     * [SelectionUnknownReason.GRAPH_UNKNOWN].
+     */
+    fun select(
+        input: TestTaskInput,
+        seeds: SeedSet,
+        scan: (List<Path>) -> ClassGraphResult,
+        rules: SeedRules,
+        seedScan: (List<Path>) -> SeedResult,
     ): Selection {
         seeds.forced?.let { return unknown(input, it.reason, it.detail) }
         unsupported(input)?.let { return it }
         return try {
-            analyse(input, seeds, scan)
+            analyse(input, seeds, scan, rules, seedScan)
         } catch (e: Exception) {
             unknown(input, SelectionUnknownReason.ANALYSIS_ERROR, "${e.javaClass.name}: ${e.message}")
         }
@@ -85,7 +104,13 @@ internal object TestSelector {
         }
     }
 
-    private fun analyse(input: TestTaskInput, seeds: SeedSet, scan: (List<Path>) -> ClassGraphResult): Selection {
+    private fun analyse(
+        input: TestTaskInput,
+        seeds: SeedSet,
+        scan: (List<Path>) -> ClassGraphResult,
+        rules: SeedRules,
+        seedScan: (List<Path>) -> SeedResult,
+    ): Selection {
         val tests = scan(input.testRoots)
         val others = scan(input.otherRoots)
         val problems = listOf(tests, others).flatMap { (it as? ClassGraphResult.Unknown)?.problems.orEmpty() }
@@ -98,15 +123,55 @@ internal object TestSelector {
             testGraph.classes.mapNotNull(testGraph::facts) + otherGraph.classes.mapNotNull(otherGraph::facts),
         )
 
+        // The seed facts only add links to walk from a changed class, so with nothing changed they are not read at all.
+        val seedInputs = if (seeds.seeds.isEmpty()) SeedInputs(emptyList(), emptyList()) else when (
+            val scanned = seedScan(input.testRoots + input.otherRoots)
+        ) {
+            is SeedResult.Unknown -> return unknown(
+                input,
+                SelectionUnknownReason.GRAPH_UNKNOWN,
+                describe(scanned.problems),
+            )
+
+            is SeedResult.Known -> scanned.inputs
+        }
+
+        val sources = graph.classes.mapNotNullTo(HashSet()) { graph.sourceOf(it) }
+        val reachable = ArrayList<Seed>()
+        for (seed in seeds.seeds) {
+            if (seed.unverified) {
+                // A relocated (shaded) copy keeps the file name but gains a package prefix.
+                val related = seed.classes.any { graph.facts(it) != null } ||
+                    seed.sourceKeys.any { key -> key in sources || sources.any { it.endsWith("/$key") } }
+                if (!related) continue
+                if (seed.classes.any { graph.facts(it) == null }) {
+                    return unknown(
+                        input,
+                        SelectionUnknownReason.CHANGE_NOT_MAPPED,
+                        "classes of ${seed.origin} could not be resolved",
+                    )
+                }
+            }
+            reachable.add(seed)
+        }
+
         val candidates = TestCandidates.find(graph, testGraph.classes)
-        val reach = ReverseReach.reach(graph, seeds.seeds, candidates.names.toSet())
+        val reach = ReverseReach.reach(graph, reachable, candidates.names.toSet(), SeedGraph.of(seedInputs, rules))
         val global = if (reach.selected.size < candidates.names.size) reachedGlobal(input, graph, reach) else null
+        val always = rules.alwaysRun(candidates.names).toSet()
 
         val selected = candidates.names.mapNotNull { name ->
             val own = reach.pathTo(name)
             when {
                 own != null -> SelectedTest(name, own, SelectReason.REACHED, candidates.isRecognised(name))
                 global != null -> SelectedTest(name, global, SelectReason.GLOBAL, candidates.isRecognised(name))
+                name in always -> SelectedTest(
+                    name,
+                    ReachPath("alwaysRun", name, emptyList()),
+                    SelectReason.ALWAYS_RUN,
+                    candidates.isRecognised(name),
+                )
+
                 else -> null
             }
         }

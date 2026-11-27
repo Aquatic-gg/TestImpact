@@ -40,7 +40,10 @@ testing {
                 implementation(libs.kotlin.test.junit5)
             }
             targets.configureEach {
-                testTask.configure { shouldRunAfter(tasks.named("test")) }
+                testTask.configure {
+                    shouldRunAfter(tasks.named("test"))
+                    systemProperty("testimpact.kotlinVersion", libs.versions.kotlin.get())
+                }
             }
         }
     }

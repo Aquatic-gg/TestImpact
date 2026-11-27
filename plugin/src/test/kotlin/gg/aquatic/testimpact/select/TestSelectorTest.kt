@@ -116,6 +116,38 @@ class TestSelectorTest {
     }
 
     @Test
+    fun `an unverified seed unrelated to the graph is dropped`() {
+        val tests = graph(facts("t.T", references = listOf("m.Core")))
+        val seeds = SeedSet(listOf(Seed("lib/src/test/p/LibTest.kt", listOf("p.LibTest"), listOf("p/LibTest.kt"), true)))
+        val result = known(TestSelector.select(input(), seeds, scanner(tests, graph(facts("m.Core")))))
+        assertEquals(emptyList(), result.tests)
+    }
+
+    @Test
+    fun `an unverified seed that the graph knows by source file or class is kept`() {
+        val tests = graph(facts("t.T", references = listOf("m.Core")))
+        val others = graph(facts("m.Core", sourceFile = "Core.kt"))
+        val bySource = SeedSet(listOf(Seed("lib/Core.kt", listOf("m.Core"), listOf("m/Core.kt"), true)))
+        assertEquals(listOf("t.T"), known(TestSelector.select(input(), bySource, scanner(tests, others))).tests.map { it.className })
+    }
+
+    @Test
+    fun `an unverified seed whose source file only exists in a relocated package cannot be mapped`() {
+        val others = graph(facts("q.p.Foo", sourceFile = "Foo.kt"))
+        val seeds = SeedSet(listOf(Seed("lib/Foo.kt", listOf("p.Foo"), listOf("p/Foo.kt"), true)))
+        val result = unknown(TestSelector.select(input(), seeds, scanner(graph(facts("t.T")), others)))
+        assertEquals(SelectionUnknownReason.CHANGE_NOT_MAPPED, result.reason)
+    }
+
+    @Test
+    fun `an unverified seed with only some classes in the graph cannot be mapped`() {
+        val others = graph(facts("m.Core"))
+        val seeds = SeedSet(listOf(Seed("lib/Core.kt", listOf("m.Core", "m.Gone"), listOf("m/Core.kt"), true)))
+        val result = unknown(TestSelector.select(input(), seeds, scanner(graph(facts("t.T")), others)))
+        assertEquals(SelectionUnknownReason.CHANGE_NOT_MAPPED, result.reason)
+    }
+
+    @Test
     fun `selected tests are sorted by class name`() {
         val tests = graph(
             facts("t.B", references = listOf("m.Core")),

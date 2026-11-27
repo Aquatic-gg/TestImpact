@@ -46,6 +46,18 @@ internal object SeedScanner {
         return SeedResult.Known(SeedInputs(classes.sortedBy { it.name }, mergeByPath(resources)))
     }
 
+    /** Combines the scans of single roots into what one scan of all of them gives. */
+    fun merge(parts: List<SeedResult>): SeedResult {
+        val problems = parts.filterIsInstance<SeedResult.Unknown>().flatMap { it.problems }
+        if (problems.isNotEmpty()) {
+            return SeedResult.Unknown(problems.sortedWith(compareBy({ it.location }, { it.message })))
+        }
+        val inputs = parts.filterIsInstance<SeedResult.Known>().map { it.inputs }
+        return SeedResult.Known(
+            SeedInputs(inputs.flatMap { it.classes }.sortedBy { it.name }, mergeByPath(inputs.flatMap { it.resources })),
+        )
+    }
+
     private fun mergeByPath(resources: List<ResourceFacts>): List<ResourceFacts> =
         resources.groupBy { it.path }.toSortedMap().map { (path, same) ->
             if (same.size == 1) same[0]

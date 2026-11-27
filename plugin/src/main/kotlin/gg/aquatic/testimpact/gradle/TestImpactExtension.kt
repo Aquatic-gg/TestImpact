@@ -1,11 +1,12 @@
 package gg.aquatic.testimpact.gradle
 
+import org.gradle.api.provider.Property
 import org.gradle.api.provider.SetProperty
 
 /**
  * The `testImpact { }` block of a project.
  *
- * Both properties are validated when test selection reads them, not when they are set.
+ * Every property is validated when test selection reads them, not when they are set.
  * An invalid entry fails the build with a message naming the property and the entry.
  */
 public abstract class TestImpactExtension {
@@ -27,4 +28,32 @@ public abstract class TestImpactExtension {
      * 1000 entries of at most 512 characters.
      */
     public abstract val alwaysRun: SetProperty<String>
+
+    /**
+     * How the plugin treats the Test tasks: `auto` selects the tests a change can reach, `full` runs every test
+     * and `off` leaves the tasks exactly as they are without the plugin. The Gradle property `-PtestImpact` and
+     * the environment variable `TEST_IMPACT` take precedence over this value. Case-insensitive; defaults to
+     * `auto`. An invalid value fails the build with a message naming where it came from.
+     */
+    public abstract val mode: Property<String>
+
+    /**
+     * Git ref the changes are measured against, for example `origin/main`. When absent the plugin derives it
+     * from the repository. An empty value counts as not set. Otherwise at most 255 characters, no whitespace or
+     * control characters, no leading `-` and no `..` at either end. On a detached HEAD only a value set here is
+     * used; without one the whole task runs.
+     */
+    public abstract val baseRef: Property<String>
+
+    /**
+     * Largest share of the test classes, in percent, that a partial selection may hold. A selection above it
+     * runs the full task because a change that wide is not worth analysing. 1 to 100; defaults to 60.
+     */
+    public abstract val wideChangePercent: Property<Int>
+
+    /**
+     * Fewest test classes a task needs before [wideChangePercent] applies, so small modules are never run in
+     * full for that reason. 0 to 1,000,000; defaults to 12.
+     */
+    public abstract val wideChangeMinClasses: Property<Int>
 }

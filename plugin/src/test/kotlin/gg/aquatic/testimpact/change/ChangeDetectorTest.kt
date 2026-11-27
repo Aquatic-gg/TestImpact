@@ -2,6 +2,8 @@ package gg.aquatic.testimpact.change
 
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -254,6 +256,97 @@ class ChangeDetectorTest {
     }
 
     @Test
+    fun classCompiledOnlyIntoAJarResolves() = withFeature { repo ->
+        val jar = repo.base.resolve("dependency.jar")
+        ZipOutputStream(Files.newOutputStream(jar)).use { zip ->
+            zip.putNextEntry(ZipEntry("p/InJar.class"))
+            zip.closeEntry()
+        }
+        repo.write(path("InJar"), kt("p", "InJar"))
+        repo.write(path("NotInJar"), kt("p", "NotInJar"))
+        val known = known(ChangeDetector.detect(input(repo, "main").copy(classOutputDirs = listOf(jar)), repo.env))
+        assertEquals(true, known.file(path("InJar")).after?.classesResolved)
+        assertEquals(listOf("p.InJar"), known.file(path("InJar")).after?.classes)
+        assertEquals(false, known.file(path("NotInJar")).after?.classesResolved)
+    }
+
+    @Test
+    fun sourceOfAModuleOutsideTheClasspathIsNotAnObstacle() = withFeature { repo ->
+        val classes = repo.dir.resolve("own/build/classes")
+        Files.createDirectories(classes)
+        repo.write("far/src/main/java/q/Far.java", "package q;\n\npublic class Far {}\n")
+        repo.write("own/src/main/java/q/Near.java", "package q;\n\npublic class Near {}\n")
+        val detection = ChangeDetector.detect(
+            input(repo, "main").copy(
+                classOutputDirs = listOf(classes),
+                sourceRoots = listOf(repo.dir.resolve("own/src/main/java")),
+                ownSourceRoots = listOf(repo.dir.resolve("own/src/main/java")),
+                conventionalRoots = true,
+            ),
+            repo.env,
+        )
+        val known = known(detection)
+        val far = known.file("far/src/main/java/q/Far.java").after
+        assertEquals(true, far?.classesResolved)
+        assertEquals(false, far?.classesCompiled)
+        assertEquals(listOf("q.Far"), far?.classes)
+        assertEquals(false, known.file("own/src/main/java/q/Near.java").after?.classesResolved)
+    }
+
+    @Test
+    fun sourceRootOfAnotherSourceSetIsLeftToTheClassGraph() = withFeature { repo ->
+        val classes = repo.dir.resolve("build/classes")
+        Files.createDirectories(classes)
+        repo.write("src/functionalTest/java/q/Other.java", "package q;\n\npublic class Other {}\n")
+        repo.write("src/main/java/q/Mine.java", "package q;\n\npublic class Mine {}\n")
+        val detection = ChangeDetector.detect(
+            input(repo, "main").copy(
+                classOutputDirs = listOf(classes),
+                sourceRoots = listOf(repo.dir.resolve("src/functionalTest/java"), repo.dir.resolve("src/main/java")),
+                ownSourceRoots = listOf(repo.dir.resolve("src/main/java")),
+            ),
+            repo.env,
+        )
+        val known = known(detection)
+        val other = known.file("src/functionalTest/java/q/Other.java").after
+        assertEquals(true, other?.classesResolved)
+        assertEquals(false, other?.classesCompiled)
+        assertEquals(false, known.file("src/main/java/q/Mine.java").after?.classesResolved)
+    }
+
+    @Test
+    fun ownSourceStaysUnresolvedWhenTheClassOutputLiesOutsideTheModule() = withFeature { repo ->
+        val elsewhere = repo.base.resolve("relocated-build/classes")
+        Files.createDirectories(elsewhere)
+        repo.write("own/src/main/java/q/Built.java", "package q;\n\npublic class Built {}\n")
+        repo.write("own/src/main/java/q/Missing.java", "package q;\n\npublic class Missing {}\n")
+        Files.createDirectories(elsewhere.resolve("q"))
+        Files.write(elsewhere.resolve("q/Built.class"), ByteArray(0))
+        val detection = ChangeDetector.detect(
+            input(repo, "main").copy(
+                classOutputDirs = listOf(elsewhere),
+                sourceRoots = listOf(repo.dir.resolve("own/src/main/java")),
+                ownSourceRoots = listOf(repo.dir.resolve("own/src/main/java")),
+                conventionalRoots = true,
+            ),
+            repo.env,
+        )
+        val known = known(detection)
+        assertEquals(true, known.file("own/src/main/java/q/Built.java").after?.classesCompiled)
+        val missing = known.file("own/src/main/java/q/Missing.java").after
+        assertEquals(false, missing?.classesResolved)
+    }
+
+    @Test
+    fun corruptJarMakesDetectionUnknown() = withFeature { repo ->
+        val jar = repo.base.resolve("broken.jar")
+        Files.write(jar, "not a zip file".toByteArray())
+        repo.write(path("A"), kt("p", "A"))
+        val detection = ChangeDetector.detect(input(repo, "main").copy(classOutputDirs = listOf(jar)), repo.env)
+        assertUnknown(UnknownReason.ANALYSIS_ERROR, detection)
+    }
+
+    @Test
     fun emptyClassOutputCannotVerifyDeclaredClasses() = withFeature { repo ->
         repo.write(path("A"), kt("p", "A"))
         val detection = ChangeDetector.detect(input(repo, "main").copy(classOutputDirs = emptyList()), repo.env)
@@ -332,13 +425,27 @@ class ChangeDetectorTest {
             repo.gitIn(repo.base, "clone", "-q", "--no-local", "--depth", "1", repo.dir.toString(), "shallow")
             assertUnknown(UnknownReason.SHALLOW_CLONE, detect(repo, base = "main", dir = repo.sibling("shallow")))
             repo.git("checkout", "-q", "--detach")
-            assertUnknown(UnknownReason.DETACHED_HEAD, detect(repo))
+            assertUnknown(UnknownReason.DETACHED_HEAD, detect(repo, base = null))
             repo.git("checkout", "-q", "--orphan", "lone")
             repo.git("rm", "-rf", "-q", ".")
             repo.write("b.txt", "other\n")
             repo.commitAll("lone")
             assertUnknown(UnknownReason.NO_MERGE_BASE, detect(repo))
         }
+    }
+
+    @Test
+    fun detachedHeadWithAnExplicitBaseDetectsTheChanges() = withFeature { repo ->
+        compiled(repo, "p.A")
+        repo.write(path("A"), kt("p", "A"))
+        repo.commitAll("committed")
+        repo.git("checkout", "-q", "--detach")
+
+        val detection = known(detect(repo, base = "main"))
+
+        assertEquals(listOf(path("A")), detection.files.map { it.path })
+        assertUnknown(UnknownReason.DETACHED_HEAD, detect(repo, base = null))
+        assertUnknown(UnknownReason.BASE_REF_NOT_FOUND, detect(repo, base = "missing"))
     }
 
     @Test

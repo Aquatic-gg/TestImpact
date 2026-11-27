@@ -2,6 +2,11 @@ package gg.aquatic.testimpact.select.internal
 
 import gg.aquatic.testimpact.graph.Edge
 import gg.aquatic.testimpact.graph.EdgeKind
+import gg.aquatic.testimpact.seed.ResourceFacts
+import gg.aquatic.testimpact.seed.SeedFacts
+import gg.aquatic.testimpact.seed.SeedGraph
+import gg.aquatic.testimpact.seed.SeedKind
+import gg.aquatic.testimpact.seed.SeedRules
 import gg.aquatic.testimpact.select.Seed
 import gg.aquatic.testimpact.select.internal.FactsBuilder.ABSTRACT
 import gg.aquatic.testimpact.select.internal.FactsBuilder.PUBLIC
@@ -136,5 +141,56 @@ class ReverseReachTest {
         )
         val seeds = listOf(Seed("a.kt", listOf("m.A"), emptyList()), Seed("b.kt", listOf("m.B"), emptyList()))
         assertEquals("b.kt", ReverseReach.reach(graph, seeds, setOf("t.FromB")).pathTo("t.FromB")?.origin)
+    }
+
+    private val seedGraph = SeedGraph.of(
+        listOf(SeedFacts("m.Loader", emptyList(), dynamic = false, loadsResources = true, provides = emptyList())),
+        listOf(ResourceFacts("app.yml", listOf("m.Defs"), descriptor = true)),
+        SeedRules.NONE,
+    )
+
+    private val resourceGraph = graph(
+        facts("m.Defs"),
+        facts("m.Loader"),
+        facts("t.LoaderTest", references = listOf("m.Loader")),
+        facts("t.Other", references = listOf("m.Defs")),
+    )
+
+    @Test
+    fun `a path through a resource node carries the seed kind of each hop`() {
+        val result = ReverseReach.reach(resourceGraph, listOf(seed("m.Defs")), setOf("t.LoaderTest"), seedGraph)
+        val path = result.pathTo("t.LoaderTest")
+        assertEquals(
+            listOf(
+                Edge("/app.yml", "m.Defs", EdgeKind.REFERENCE),
+                Edge("m.Loader", "/app.yml", EdgeKind.REFERENCE),
+                Edge("t.LoaderTest", "m.Loader", EdgeKind.REFERENCE),
+            ),
+            path?.edges,
+        )
+        assertEquals(mapOf(0 to SeedKind.DESCRIPTOR, 1 to SeedKind.RESOURCE_LOADER), path?.seedKinds)
+        assertEquals("m.Defs", path?.start)
+    }
+
+    @Test
+    fun `seed edges give the same path on every run`() {
+        val candidates = setOf("t.LoaderTest", "t.Other")
+        val first = ReverseReach.reach(resourceGraph, listOf(seed("m.Defs")), candidates, seedGraph)
+        val second = ReverseReach.reach(resourceGraph, listOf(seed("m.Defs")), candidates, seedGraph)
+        assertEquals(first.selected, second.selected)
+        for (name in candidates) assertEquals(first.pathTo(name), second.pathTo(name))
+    }
+
+    @Test
+    fun `without seed edges the resource link is not followed`() {
+        val result = ReverseReach.reach(resourceGraph, listOf(seed("m.Defs")), setOf("t.LoaderTest"))
+        assertNull(result.pathTo("t.LoaderTest"))
+    }
+
+    @Test
+    fun `the walk still stops once every candidate is selected`() {
+        val result = ReverseReach.reach(resourceGraph, listOf(seed("m.Defs")), setOf("t.Other"), seedGraph)
+        assertEquals(listOf("t.Other"), result.selected)
+        assertNull(result.pathToClass("t.LoaderTest"))
     }
 }

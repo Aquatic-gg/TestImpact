@@ -6,8 +6,8 @@ import gg.aquatic.testimpact.change.FileKind
 import gg.aquatic.testimpact.change.FileSnapshot
 
 /**
- * Maps change detection to graph seeds. Only source files seed the graph; a change that cannot be mapped to classes
- * is reported as [Forced] instead of being dropped.
+ * Maps change detection to graph seeds. Only source files seed the graph; a change that cannot be mapped to classes,
+ * including a Java or Kotlin file outside every known source root, is reported as [Forced] instead of being dropped.
  */
 internal object Seeds {
 
@@ -36,6 +36,9 @@ internal object Seeds {
                     }
                 }
 
+                FileKind.OTHER in kinds && (file.path.endsWith(".java") || file.path.endsWith(".kt")) ->
+                    "source outside known source roots: ${file.path}"
+
                 else -> null
             }
             if (problem != null && forced == null) {
@@ -61,7 +64,7 @@ internal object Seeds {
         if (sides.isEmpty() || sides.any { !it.classesResolved || it.classes.isEmpty() }) return null
         val classes = sides.flatMap { it.classes }.distinct().sorted()
         val keys = sides.mapNotNull { sourceKey(it) }.distinct().sorted()
-        return Seed(file.path, classes, keys)
+        return Seed(file.path, classes, keys, sides.any { !it.classesCompiled })
     }
 
     private fun sourceKey(side: FileSnapshot): String? {

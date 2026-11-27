@@ -38,6 +38,14 @@ class SeedsTest {
     }
 
     @Test
+    fun `a source file not compiled for the task becomes an unverified seed`() {
+        val snapshot = FileSnapshot("lib/src/test/p/LibTest.kt", FileKind.SOURCE, listOf("p.LibTest"), classesCompiled = false)
+        val set = Seeds.from(known(modified(snapshot)))
+        assertNull(set.forced)
+        assertEquals(true, set.seeds.single().unverified)
+    }
+
+    @Test
     fun `default package source key is the file name`() {
         val set = Seeds.from(known(modified(source("src/Top.java", "Top"))))
         assertEquals(listOf("Top.java"), set.seeds.single().sourceKeys)
@@ -106,6 +114,15 @@ class SeedsTest {
         val ignored = Seeds.from(known(other))
         assertNull(ignored.forced)
         assertEquals(emptyList(), ignored.seeds)
+    }
+
+    @Test
+    fun `a java or kotlin file outside every source root forces CHANGE_NOT_MAPPED`() {
+        for (path in listOf("tools/Script.kt", "legacy/A.java")) {
+            val forced = Seeds.from(known(modified(FileSnapshot(path, FileKind.OTHER)))).forced
+            assertEquals(SelectionUnknownReason.CHANGE_NOT_MAPPED, forced?.reason)
+            assertEquals("source outside known source roots: $path", forced?.detail)
+        }
     }
 
     @Test

@@ -1,6 +1,7 @@
 package gg.aquatic.testimpact.gradle
 
 import gg.aquatic.testimpact.cache.CacheCorpus
+import gg.aquatic.testimpact.gradle.internal.ServiceNames
 import gg.aquatic.testimpact.graph.ClassGraphResult
 import gg.aquatic.testimpact.graph.ClassGraphScanner
 import org.gradle.api.provider.Provider
@@ -27,7 +28,7 @@ class ClassGraphServiceTest {
     private fun service(): ClassGraphService {
         val project = ProjectBuilder.builder().withProjectDir(temp.resolve("project").also(Files::createDirectories).toFile()).build()
         project.plugins.apply(TestImpactPlugin::class.java)
-        val registration = project.gradle.sharedServices.registrations.getByName("testImpactClassGraph")
+        val registration = project.gradle.sharedServices.registrations.getByName(ServiceNames.classGraph)
         @Suppress("UNCHECKED_CAST")
         val provider = (registration as BuildServiceRegistration<ClassGraphService, ClassGraphService.Params>).service as Provider<ClassGraphService>
         return provider.get()
@@ -37,7 +38,7 @@ class ClassGraphServiceTest {
     fun `registers the service with the class cache directory`() {
         val project = ProjectBuilder.builder().withProjectDir(temp.resolve("p").also(Files::createDirectories).toFile()).build()
         project.plugins.apply(TestImpactPlugin::class.java)
-        val registration = project.gradle.sharedServices.registrations.getByName("testImpactClassGraph")
+        val registration = project.gradle.sharedServices.registrations.getByName(ServiceNames.classGraph)
         @Suppress("UNCHECKED_CAST")
         val params = (registration as BuildServiceRegistration<ClassGraphService, ClassGraphService.Params>).parameters
         val dir = params.cacheDirectory.get().asFile.toPath().toString().replace('\\', '/')
@@ -102,12 +103,12 @@ class ClassGraphServiceTest {
         val dir = temp.resolve("lazy-cache").toFile()
         var touched = false
         val project = ProjectBuilder.builder().withProjectDir(temp.resolve("lazy").also(Files::createDirectories).toFile()).build()
-        project.gradle.sharedServices.registerIfAbsent("testImpactClassGraph", ClassGraphService::class.java) { spec ->
+        project.gradle.sharedServices.registerIfAbsent(ServiceNames.classGraph, ClassGraphService::class.java) { spec ->
             spec.parameters.cacheDirectory.set(project.layout.dir(project.provider { touched = true; dir }))
         }
         project.plugins.apply(TestImpactPlugin::class.java)
         assertFalse(touched)
-        project.gradle.sharedServices.registrations.getByName("testImpactClassGraph").service.get()
+        project.gradle.sharedServices.registrations.getByName(ServiceNames.classGraph).service.get()
         assertTrue(touched)
     }
 
@@ -118,7 +119,7 @@ class ClassGraphServiceTest {
         val child = ProjectBuilder.builder().withName("child").withParent(root)
             .withProjectDir(rootDir.resolve("child").also(Files::createDirectories).toFile()).build()
         child.plugins.apply(TestImpactPlugin::class.java)
-        val registration = child.gradle.sharedServices.registrations.getByName("testImpactClassGraph")
+        val registration = child.gradle.sharedServices.registrations.getByName(ServiceNames.classGraph)
         @Suppress("UNCHECKED_CAST")
         val params = (registration as BuildServiceRegistration<ClassGraphService, ClassGraphService.Params>).parameters
         // real paths: a CI temp directory may be reported by its short (8.3) name on Windows

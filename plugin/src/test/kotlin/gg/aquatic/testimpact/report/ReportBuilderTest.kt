@@ -2,8 +2,13 @@ package gg.aquatic.testimpact.report
 
 import gg.aquatic.testimpact.change.ChangeDetection
 import gg.aquatic.testimpact.change.UnknownReason
+import gg.aquatic.testimpact.gradle.internal.SelectionDecision
+import gg.aquatic.testimpact.gradle.internal.SelectionOutcome
+import gg.aquatic.testimpact.gradle.internal.SelectionSettings
+import gg.aquatic.testimpact.gradle.internal.TestImpactMode
 import gg.aquatic.testimpact.graph.Edge
 import gg.aquatic.testimpact.graph.EdgeKind
+import gg.aquatic.testimpact.seed.SeedKind
 import gg.aquatic.testimpact.select.Forced
 import gg.aquatic.testimpact.select.ReachPath
 import gg.aquatic.testimpact.select.SeedSet
@@ -19,13 +24,15 @@ import kotlin.test.assertTrue
 
 class ReportBuilderTest {
 
+    private val emptyTask = listOf(ReportFixtures.known(":c:test", emptyList()))
+
     private fun build(
         selections: List<Selection>,
         detection: ChangeDetection = ReportFixtures.changedCore(),
         seeds: SeedSet = SeedSet(emptyList()),
         scrubber: PathScrubber = ReportFixtures.scrubber,
         selectionMs: Map<String, Long> = emptyMap(),
-    ) = ReportBuilder.build(":c", detection, seeds, selections, 7, selectionMs, scrubber)
+    ) = ReportFixtures.report(selections, detection, seeds, 7, selectionMs, scrubber)
 
     @Test
     fun `reached test names changed file seed and reached class`() {
@@ -42,8 +49,9 @@ class ReportBuilderTest {
 
     @Test
     fun `global test keeps the class that registers the extension as reached class`() {
-        val test = build(listOf(ReportFixtures.known(":c:test", listOf(ReportFixtures.globalTest()))))
-            .tasks.single().tests.single()
+        val tests = listOf(ReportFixtures.reachedTest(), ReportFixtures.globalTest())
+        val test = build(listOf(ReportFixtures.known(":c:test", tests)))
+            .tasks.single().tests.single { it.className == "c.OtherTest" }
 
         assertEquals("GLOBAL", test.reason)
         assertEquals("c.Ext", test.reachedClass)
@@ -82,7 +90,7 @@ class ReportBuilderTest {
         val scrubber = PathScrubber(listOf("/r/proj" to PathScrubber.ROOT))
         val seeds = SeedSet(emptyList(), Forced(SelectionUnknownReason.CHANGE_NOT_MAPPED, "resource change at /r/proj/a.properties"))
 
-        val forced = assertNotNull(build(emptyList(), seeds = seeds, scrubber = scrubber).forced)
+        val forced = assertNotNull(build(emptyTask, seeds = seeds, scrubber = scrubber).forced)
 
         assertEquals("CHANGE_NOT_MAPPED", forced.reason)
         assertEquals("resource change at <root>/a.properties", forced.detail)
@@ -92,7 +100,7 @@ class ReportBuilderTest {
     fun `unknown detection gives state unknown with its reason`() {
         val detection = ChangeDetection.Unknown(UnknownReason.NOT_A_REPOSITORY, "no repository")
 
-        val changes = build(emptyList(), detection = detection).changes
+        val changes = build(emptyTask, detection = detection).changes
 
         assertEquals(ImpactReport.State.UNKNOWN, changes.state)
         assertEquals("NOT_A_REPOSITORY", changes.reason)
@@ -102,7 +110,7 @@ class ReportBuilderTest {
 
     @Test
     fun `known detection lists the changed files`() {
-        val changes = build(emptyList()).changes
+        val changes = build(emptyTask).changes
 
         assertEquals(ImpactReport.State.KNOWN, changes.state)
         val file = changes.files.single()
@@ -149,5 +157,79 @@ class ReportBuilderTest {
         val step = build(listOf(ReportFixtures.known(":c:test", listOf(selected)))).tasks.single().tests.single().path.single()
 
         assertEquals("INLINE", step.kind)
+        assertNull(step.seed)
+    }
+
+    @Test
+    fun `a hop through a seed link keeps its seed kind and the other edges have none`() {
+        val edges = listOf(Edge("b.Svc", "a.Impl", EdgeKind.REFERENCE), Edge("c.T", "b.Svc", EdgeKind.REFERENCE))
+        val selected = SelectedTest("c.T", ReachPath("o", "a.Impl", edges, mapOf(0 to SeedKind.SERVICE)), SelectReason.REACHED, true)
+
+        val steps = build(listOf(ReportFixtures.known(":c:test", listOf(selected)))).tasks.single().tests.single().path
+
+        assertEquals(listOf("SERVICE", null), steps.map { it.seed })
+        assertTrue("\"seed\":\"SERVICE\"" in ReportJson.render(build(listOf(ReportFixtures.known(":c:test", listOf(selected))))).replace(" ", ""))
+    }
+
+    @Test
+    fun `a wide change is a full task with the decision's rule`() {
+        val settings = SelectionSettings.of(null, 1, 0, emptySet(), emptySet())
+        val selection = ReportFixtures.known(":c:test", listOf(ReportFixtures.reachedTest()), candidates = 2)
+
+        val report = ReportFixtures.report(listOf(selection), settings = settings)
+
+        val task = report.tasks.single()
+        assertEquals(ImpactReport.Result.FULL, task.result)
+        assertNull(task.counts)
+        assertTrue(task.tests.isEmpty())
+        val rule = assertNotNull(task.rule)
+        assertEquals("WIDE_CHANGE", rule.reason)
+        assertEquals("1 of 2 test classes are affected, above 1%", rule.detail)
+        assertEquals(ImpactReport.Totals(tasks = 1, fullRunTasks = 1, selectedTests = 0, candidates = 0), report.totals)
+    }
+
+    @Test
+    fun `a task decided by the mode reads no changes and shows not analysed`() {
+        val decision = assertNotNull(SelectionDecision.shortCircuit(":c:test", TestImpactMode.FULL, false, 2))
+
+        val report = ReportBuilder.build(":c", listOf(SelectionOutcome(decision)), ReportFixtures.scrubber)
+
+        assertEquals("MODE_FULL", report.tasks.single().rule?.reason)
+        assertEquals(ImpactReport.State.UNKNOWN, report.changes.state)
+        assertEquals(ReportBuilder.NOT_ANALYSED, report.changes.reason)
+        assertEquals("every task was decided before reading the changes", report.changes.detail)
+    }
+
+    @Test
+    fun `a project without a Test task shows not analysed`() {
+        val report = ReportBuilder.build(":c", emptyList(), ReportFixtures.scrubber)
+
+        assertEquals(ReportBuilder.NOT_ANALYSED, report.changes.reason)
+        assertEquals("the project has no Test task", report.changes.detail)
+        assertTrue(report.tasks.isEmpty())
+    }
+
+    @Test
+    fun `forced is shown only when every task that read the changes is forced alike`() {
+        val forced = SeedSet(emptyList(), Forced(SelectionUnknownReason.CHANGE_NOT_MAPPED, "x.properties"))
+        val detection = ReportFixtures.changedCore()
+        val settings = SelectionSettings.of(null, 60, 12, emptySet(), emptySet())
+        fun outcome(path: String, seeds: SeedSet): SelectionOutcome {
+            val selection = seeds.forced?.let { Selection.Unknown(path, it.reason, it.detail) }
+                ?: ReportFixtures.known(path, emptyList())
+            val decision = SelectionDecision.decide(selection, detection, settings, TestImpactMode.AUTO, false, 0)
+            return SelectionOutcome(decision, detection, seeds, selection)
+        }
+
+        val alike = ReportBuilder.build(":c", listOf(outcome(":c:a", forced), outcome(":c:b", forced)), ReportFixtures.scrubber)
+        val mixed = ReportBuilder.build(
+            ":c",
+            listOf(outcome(":c:a", forced), outcome(":c:b", SeedSet(emptyList()))),
+            ReportFixtures.scrubber,
+        )
+
+        assertEquals("CHANGE_NOT_MAPPED", alike.forced?.reason)
+        assertNull(mixed.forced)
+        assertEquals(ImpactReport.Result.SELECTED, mixed.tasks.single { it.path == ":c:b" }.result)
     }
 }

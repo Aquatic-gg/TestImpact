@@ -73,7 +73,18 @@ class GitRepositoryTest {
     }
 
     @Test
-    fun shallowCloneIsUnknownEvenWithBasePresent() = committedRepo { repo ->
+    fun detachedHeadReadsAgainstAnExplicitBase() = committedRepo { repo ->
+        repo.git("checkout", "-q", "-b", "feature")
+        repo.write("b.txt", "two\n")
+        repo.commitAll("two")
+        repo.git("checkout", "-q", "--detach")
+        val ok = okOf(read(repo, base = "main"))
+        assertEquals("main", ok.baseRef)
+        assertEquals(UnknownReason.DETACHED_HEAD, unknownOf(read(repo, base = null)).reason)
+    }
+
+    @Test
+    fun shallowCloneIsUnknownEvenWithBasePresent()= committedRepo { repo ->
         repo.write("a.txt", "two\n")
         repo.commitAll("two")
         repo.gitIn(repo.base, "clone", "-q", "--no-local", "--depth", "1", repo.dir.toString(), "shallow")

@@ -15,6 +15,36 @@ class FileClassifierTest {
 
     private fun kind(path: String) = classifier.classify(path).kind
 
+    private val conventional = FileClassifier(
+        sourceRoots = listOf("plugin/src/main/kotlin"),
+        resourceRoots = listOf("plugin/src/main/resources"),
+        buildLogicRoots = emptyList(),
+        conventionalRoots = true,
+    )
+
+    @Test
+    fun `conventional roots classify sources and resources of other modules`() {
+        assertEquals(FileKind.SOURCE, conventional.classify("other/src/test/java/p/A.java").kind)
+        assertEquals(FileKind.SOURCE, conventional.classify("other/src/integration/kotlin/p/A.kt").kind)
+        val resource = conventional.classify("other/src/main/resources/META-INF/services/x.Y")
+        assertEquals(FileKind.RESOURCE, resource.kind)
+        assertEquals("META-INF/services/x.Y", resource.resourcePath)
+        assertEquals(FileKind.OTHER, conventional.classify("other/src/main/java/p/notes.txt").kind)
+        assertEquals(FileKind.OTHER, conventional.classify("other/src/main/A.kt").kind)
+    }
+
+    @Test
+    fun `an explicit root beats the conventional layout`() {
+        val snapshot = conventional.classify("plugin/src/main/resources/src/x/resources/inner.txt")
+        assertEquals("src/x/resources/inner.txt", snapshot.resourcePath)
+    }
+
+    @Test
+    fun `conventional roots are off by default`() {
+        assertEquals(FileKind.OTHER, kind("other/src/main/java/p/A.java"))
+        assertEquals(FileKind.OTHER, kind("other/src/main/resources/a.txt"))
+    }
+
     @Test
     fun `build logic patterns win`() {
         listOf(
