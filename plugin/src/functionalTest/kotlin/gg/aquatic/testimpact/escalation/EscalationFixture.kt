@@ -22,10 +22,69 @@ internal object EscalationFixture {
     """
 
     /** A green, committed module: `CalcTest` and `OtherTest` pass. */
-    fun singleModule(root: Path, extra: String = "") {
-        ImpactFixture.singleModule(root, extra = HALT.trimIndent() + "\n" + extra)
+    fun singleModule(
+        root: Path,
+        extra: String = "",
+        settingsExtra: String = "",
+        pluginLine: String = "id(\"gg.aquatic.testimpact\")",
+    ) {
+        ImpactFixture.singleModule(
+            root,
+            pluginLine = pluginLine,
+            extra = HALT.trimIndent() + "\n" + extra,
+            settingsExtra = settingsExtra,
+        )
         ImpactFixture.file(root, "src/test/java/app/CalcTest.java", calcTest())
         GitFixture.init(root)
+    }
+
+    /** Settings lines for a local build cache in [dir], which lies outside the project. */
+    fun localCache(dir: Path): String =
+        "buildCache { local { directory = file(\"${dir.toString().replace('\\', '/')}\") } }\n"
+
+    /**
+     * Two independent green modules `:a` and `:b`, each with one test asserting that its class returns 0, after the layout
+     * of [ImpactFixture.multiModule]. [bug] turns one of them red.
+     */
+    fun twoModules(root: Path) {
+        ImpactFixture.file(
+            root, "settings.gradle.kts",
+            "rootProject.name = \"fixture\"\n" +
+                "dependencyResolutionManagement { repositories { mavenCentral() } }\n" +
+                "include(\"a\", \"b\")\n",
+        )
+        ImpactFixture.file(root, ".gitignore", "build/\n.gradle/\n.kotlin/\n")
+        ImpactFixture.file(root, "build.gradle.kts", "plugins { id(\"gg.aquatic.testimpact\") apply false }\n")
+        for ((module, type) in listOf("a" to "Core", "b" to "Util")) {
+            ImpactFixture.file(
+                root, "$module/build.gradle.kts",
+                """
+                plugins {
+                    `java-library`
+                    id("gg.aquatic.testimpact")
+                }
+
+                testing { suites { named<JvmTestSuite>("test") { useJUnitJupiter("${ImpactFixture.JUPITER}") } } }
+                """.trimIndent() + "\n",
+            )
+            bug(root, module, 0)
+            ImpactFixture.file(
+                root, "$module/src/test/java/$module/${type}Test.java",
+                "package $module;\n\nimport org.junit.jupiter.api.Test;\n\nclass ${type}Test {\n" +
+                    "    @Test\n    void runs() {\n" +
+                    "        org.junit.jupiter.api.Assertions.assertEquals(0, new $type().value());\n    }\n}\n",
+            )
+        }
+        GitFixture.init(root)
+    }
+
+    /** The class of [module] returns [constant]; anything but 0 fails its test. */
+    fun bug(root: Path, module: String, constant: Int) {
+        val type = if (module == "a") "Core" else "Util"
+        ImpactFixture.file(
+            root, "$module/src/main/java/$module/$type.java",
+            "package $module;\n\npublic class $type {\n    public int value() { return $constant; }\n}\n",
+        )
     }
 
     /** `Calc` with the bug of [constant]; 0 is the fixed version. */
